@@ -4,6 +4,9 @@ require "ruby_llm"
 require "schematist"
 
 require_relative "modes/version"
+require_relative "modes/errors"
+require_relative "modes/decision"
+require_relative "modes/route"
 require_relative "modes/mode"
 require_relative "mode_agent"
 
