@@ -14,7 +14,6 @@ class RubyLLM::Modes::RouteTest < Minitest::Test
     assert_nil route.routing_ms
     assert_nil route.classifier
     assert_nil route.error
-    assert route.explicit?
   end
 
   def test_to_h_drops_mode_class_and_error_and_uses_string_keys
@@ -36,7 +35,6 @@ class RubyLLM::Modes::RouteTest < Minitest::Test
       },
       route.to_h
     )
-    assert route.fallback?
   end
 
   def test_to_h_keeps_nil_slots

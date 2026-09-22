@@ -7,7 +7,8 @@ declares the modes, a fallback, and a classifier; on every turn it returns a
 **route**: which mode handles the message, why, and what the classifier
 actually said. The app applies the mode to its chat.
 
-Status: agreed design, nothing implemented. Duck (`~/code/rails/duck`) is the
+Status: agreed design, implemented in v0.1.0 (see the decisions at the
+bottom). Duck (`~/code/rails/duck`) is the
 first consumer; its migration lives in Duck's `WORKLOG-modes.md`.
 
 ## 1. Vocabulary
@@ -334,3 +335,53 @@ shortcut.
 - No tool budget, badges, or usage accounting; those are app concerns.
 - Sugar such as `chat.with_router(...)` only if consumers repeat the same
   three lines everywhere.
+
+## 11. Decisions made while implementing (v0.1.0)
+
+Where the spec was silent the simplest reading was taken. None of these
+add API.
+
+- **No `classify` declared** means `:chat` with RubyLLM's configured
+  default model (`RubyLLM.chat(model: nil)`).
+- **`classify` validation** also raises `DeclarationError` for an unknown
+  backend symbol and for a `with:` object that does not respond to `call`.
+  For `:judge`, the `prompt` conflict is checked before Judge availability.
+- **`new` with an undeclared keyword** raises `ArgumentError`, like a
+  missing one.
+- **`Unknown mode <name>`** renders a nil `mode_name` as `Unknown mode nil`.
+- **`routing_ms` on the fallback-only shortcut** is `0`; no backend ran.
+- **`on_error`** runs on the router instance (`instance_exec`), so inputs
+  are visible inside the block. An exception raised by the handler itself
+  propagates.
+- **History entries** that respond to `to_llm` (Rails message records) are
+  accepted and normalised through the `RubyLLM::Message` they return. Any
+  other object raises `ArgumentError`. Hash keys may be symbols or strings.
+- **Contract check** rejects, besides the confidence rules of §5, a
+  `mode_name` that is neither a String nor nil, and a return value that is
+  not a `Decision`. Any `Numeric` confidence in 0..1 is accepted.
+- **`Decision#to_h`** is `{ "mode", "confidence", "reason" }` plus
+  `"probabilities"` only when set. **`Route#to_h`** keeps nil slots
+  (`"duration_ms" => nil` on an explicit route).
+- **Trace model** for `:chat` is the id of the model the built chat resolved
+  to, once a chat was built; before that (or when the factory returns an
+  object without `model`) it is the declared string, possibly nil.
+- **Chat backend parsing**: a reply that is not a JSON object raises
+  `ContractError`; a non-numeric `confidence` is passed through and rejected
+  by the router's contract check; a JSON `Integer` confidence becomes a
+  Float. JSON parse errors surface as `Classifier failed: JSON::ParserError`.
+- **Prompt rendering**: the gem does not wrap text. A multi-line description
+  is rendered with continuation lines indented by two spaces. `Conversation:`
+  is omitted when the history is empty; guidance is omitted when blank. An
+  entry with a nil role is a bare line.
+- **`mode_description`** strips surrounding whitespace. **`mode_name`
+  derivation** keeps a segment that is exactly `Agent` (`Foo::Agent` →
+  `"foo/agent"`) and returns nil for an anonymous class, which the router
+  reports as "no registration name" unless `as:` is given.
+- **`guidance`**: strings are stripped; a blank result is nil.
+- **`Router#modes`** returns `Registration` values (`klass`, `name`,
+  `description`, `condition`), evaluated on every call.
+- **`Router.validate!`** is public so an app can check a declaration at boot
+  without building an instance.
+- **`Router#classifier`** and **`Router#inputs`** are readable on the
+  instance.
+

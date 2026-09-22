@@ -18,10 +18,6 @@ module RubyLLM
         super
       end
 
-      def explicit?   = level == "explicit"
-      def classifier? = level == "classifier"
-      def fallback?   = level == "fallback"
-
       # String-keyed hash for logs. Drops the mode class and the error.
       def to_h
         {
