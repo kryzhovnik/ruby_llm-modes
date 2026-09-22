@@ -4,12 +4,14 @@ $LOAD_PATH.unshift File.expand_path("../lib", __dir__)
 
 require "ruby_llm/modes"
 require "minitest/autorun"
+require_relative "../examples/support/stub_provider"
 
 # The classifier backend builds real RubyLLM chats. A provider refuses to
 # build without a key, so give it a dummy one; no request ever leaves the
 # process because every test stubs the provider call.
 RubyLLM.configure do |config|
   config.gemini_api_key = "test-key"
+  config.default_model = "gemini-3.5-flash-lite"
 end
 
 # Fixture modes shared across the suite.
