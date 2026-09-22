@@ -167,7 +167,8 @@ Options:
 ### `:judge`
 
 Reserved for `RubyLLM::Judge`, which is not in the released gem yet.
-`classify with: :judge` raises `DeclarationError` in this version. When it
+`classify with: :judge` always raises `DeclarationError` in this version,
+even if a `RubyLLM::Judge` constant is present. When the adapter
 lands, its `confidence` will be the concentration of a probability
 distribution over the modes, a different scale from the chat backend's
 self-report, which is why thresholds are per backend.

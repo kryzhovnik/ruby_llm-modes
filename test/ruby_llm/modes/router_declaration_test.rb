@@ -191,11 +191,37 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
   end
 
   def test_judge_backend_not_available
-    refute defined?(RubyLLM::Judge), "this suite assumes the released gem has no Judge"
     assert_declaration_error(/RubyLLM::Judge not available/) do
       mode TutorAgent
       fallback TutorAgent
       classify with: :judge
+    end
+  end
+
+  def test_judge_backend_is_rejected_even_when_the_constant_exists
+    RubyLLM.const_set(:Judge, Class.new)
+    assert_declaration_error(/RubyLLM::Judge not available/) do
+      mode TutorAgent
+      fallback TutorAgent
+      classify with: :judge
+    end
+  ensure
+    RubyLLM.send(:remove_const, :Judge)
+  end
+
+  def test_input_shadowing_a_router_method
+    assert_declaration_error(/input :classifier shadows a router method/) do
+      inputs :classifier
+      mode TutorAgent
+      fallback TutorAgent
+    end
+  end
+
+  def test_input_shadowing_an_object_method
+    assert_declaration_error(/input :send shadows a router method/) do
+      inputs :send
+      mode TutorAgent
+      fallback TutorAgent
     end
   end
 

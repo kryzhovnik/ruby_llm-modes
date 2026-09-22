@@ -118,6 +118,25 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
     assert_instance_of ContractError, route.error
   end
 
+  def test_non_string_reason_is_a_contract_violation
+    route = route(FakeClassifier.deciding(mode_name: "card", confidence: 0.9, reason: :because))
+    assert_instance_of ContractError, route.error
+  end
+
+  def test_malformed_probabilities_are_a_contract_violation
+    route = route(FakeClassifier.deciding(mode_name: "card", confidence: 0.9, probabilities: "invalid"))
+    assert_instance_of ContractError, route.error
+
+    route = route(FakeClassifier.deciding(mode_name: "card", confidence: 0.9, probabilities: { "card" => "high" }))
+    assert_instance_of ContractError, route.error
+  end
+
+  def test_accepted_decision_serialises
+    route = route(FakeClassifier.deciding(mode_name: "card", confidence: 0.9, probabilities: { card: 0.9, tutor: 0.1 }))
+    assert_equal "classifier", route.level
+    assert_equal({ "card" => 0.9, "tutor" => 0.1 }, route.to_h.dig("decision", "probabilities"))
+  end
+
   def test_on_error_receives_every_classifier_exception
     seen = []
     router_class = Class.new(ThresholdRouter) { on_error { |error| seen << error } }

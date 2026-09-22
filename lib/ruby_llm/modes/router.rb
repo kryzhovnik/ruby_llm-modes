@@ -131,6 +131,7 @@ module RubyLLM
         def validate!
           raise DeclarationError, "#{name}: no fallback declared" if fallback_class.nil?
 
+          validate_inputs!
           registrations.each { |registration| validate_registration!(registration) }
           validate_uniqueness!
           validate_fallback!
@@ -145,6 +146,13 @@ module RubyLLM
 
         def description_for(klass)
           klass.mode_description if klass.respond_to?(:mode_description)
+        end
+
+        # Inputs become methods on the router instance, so a name that the
+        # router (or Object) already answers to would shadow it.
+        def validate_inputs!
+          taken = input_names.find { |input_name| method_defined?(input_name) || private_method_defined?(input_name) }
+          raise DeclarationError, "#{name}: input #{taken.inspect} shadows a router method; pick another name" if taken
         end
 
         def validate_registration!(registration)
@@ -184,7 +192,10 @@ module RubyLLM
             nil
           when :judge
             raise DeclarationError, "#{name}: prompt cannot be declared with the :judge backend" if prompt_source
-            raise DeclarationError, "#{name}: RubyLLM::Judge not available" unless defined?(RubyLLM::Judge)
+
+            # The judge adapter is not written yet; a RubyLLM that ships
+            # Judge must not turn this into a backend that cannot run.
+            raise DeclarationError, "#{name}: RubyLLM::Judge not available; the :judge backend is not implemented in this version"
           when Symbol
             raise DeclarationError, "#{name}: unknown classifier backend #{backend.inspect}"
           else
@@ -295,11 +306,25 @@ module RubyLLM
           raise ContractError, "decision mode_name must be a String or nil, got #{mode_name.inspect}"
         end
 
-        confidence = decision.confidence
+        reason = decision.reason
+        raise ContractError, "decision reason must be a String or nil, got #{reason.inspect}" unless reason.nil? || reason.is_a?(String)
+
+        validate_confidence!(decision.confidence)
+        validate_probabilities!(decision.probabilities)
+      end
+
+      def validate_confidence!(confidence)
         return if confidence.nil?
         return if confidence.is_a?(Numeric) && confidence.to_f.finite? && confidence.between?(0, 1)
 
         raise ContractError, "decision confidence must be nil or a number from 0 to 1, got #{confidence.inspect}"
+      end
+
+      def validate_probabilities!(probabilities)
+        return if probabilities.nil?
+        return if probabilities.is_a?(Hash) && probabilities.values.all? { |value| value.is_a?(Numeric) && value.to_f.finite? }
+
+        raise ContractError, "decision probabilities must be nil or a Hash of name => number, got #{probabilities.inspect}"
       end
 
       def trace_for(backend)

@@ -25,5 +25,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Not included
 
-- The `:judge` backend. `classify with: :judge` raises `DeclarationError`
-  until `RubyLLM::Judge` ships in a released RubyLLM.
+- The `:judge` backend. `classify with: :judge` always raises `DeclarationError`
+  in this version; the adapter is a blocker for the first release.

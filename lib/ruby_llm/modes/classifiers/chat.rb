@@ -33,6 +33,7 @@ module RubyLLM
         end
 
         def call(message:, history:, modes:, guidance:, inputs:)
+          @resolved_model = nil
           text = system_prompt(message:, history:, modes:, guidance:, inputs:)
           chat = build_chat
           response = chat.with_instructions(text).with_schema(self.class.schema_for(modes)).ask(message)

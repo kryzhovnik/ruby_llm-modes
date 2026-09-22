@@ -126,6 +126,19 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
     assert_equal RubyLLM.chat.model.id, route.classifier[:model]
   end
 
+  def test_trace_does_not_keep_the_model_of_a_previous_call
+    factory = StubProvider::ChatFactory.new(mode: "card")
+    factory.define_singleton_method(:call) { |model:| super(model: "gemini-2.5-flash-lite") }
+    classifier = Chat.new(model: "gemini-3.5-flash-lite", chat_factory: factory)
+    CardRouter.new(card: nil).call("add it", classifier: classifier)
+    assert_equal "gemini-2.5-flash-lite", classifier.trace[:model]
+
+    factory.define_singleton_method(:call) { |model:| raise IOError, "down" }
+    route = CardRouter.new(card: nil).call("add it", classifier: classifier)
+    assert_equal "Classifier failed: IOError", route.reason
+    assert_equal({ with: "chat", model: "gemini-3.5-flash-lite" }, route.classifier)
+  end
+
   def test_trace_before_any_call_reports_the_declared_model
     assert_equal({ with: "chat", model: "m" }, Chat.new(model: "m").trace)
     assert_equal({ with: "chat", model: nil }, Chat.new.trace)

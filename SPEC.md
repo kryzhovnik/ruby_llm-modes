@@ -345,7 +345,12 @@ add API.
   default model (`RubyLLM.chat(model: nil)`).
 - **`classify` validation** also raises `DeclarationError` for an unknown
   backend symbol and for a `with:` object that does not respond to `call`.
-  For `:judge`, the `prompt` conflict is checked before Judge availability.
+  `:judge` is rejected unconditionally in this version, even when a
+  `RubyLLM::Judge` constant exists, because the adapter is not written;
+  the `prompt` conflict is reported first.
+- **Input names** must not shadow a method the router instance already has
+  (its own, such as `classifier` or `modes`, or Object's, such as `send`);
+  `validate!` raises `DeclarationError` for them.
 - **`new` with an undeclared keyword** raises `ArgumentError`, like a
   missing one.
 - **`Unknown mode <name>`** renders a nil `mode_name` as `Unknown mode nil`.
@@ -356,14 +361,17 @@ add API.
 - **History entries** that respond to `to_llm` (Rails message records) are
   accepted and normalised through the `RubyLLM::Message` they return. Any
   other object raises `ArgumentError`. Hash keys may be symbols or strings.
-- **Contract check** rejects, besides the confidence rules of §5, a
-  `mode_name` that is neither a String nor nil, and a return value that is
-  not a `Decision`. Any `Numeric` confidence in 0..1 is accepted.
+- **Contract check** rejects, besides the confidence rules of §5, a return
+  value that is not a `Decision`, a `mode_name` or `reason` that is neither
+  a String nor nil, and `probabilities` that are not nil or a Hash of
+  finite numbers, so every accepted `Decision` serialises through
+  `Route#to_h`. Any `Numeric` confidence in 0..1 is accepted.
 - **`Decision#to_h`** is `{ "mode", "confidence", "reason" }` plus
   `"probabilities"` only when set. **`Route#to_h`** keeps nil slots
   (`"duration_ms" => nil` on an explicit route).
-- **Trace model** for `:chat` is the id of the model the built chat resolved
-  to, once a chat was built; before that (or when the factory returns an
+- **Trace model** for `:chat` is the id of the model the chat built by the
+  current call resolved to; it is reset at the start of every call, so
+  when the call fails before a chat exists (or the factory returns an
   object without `model`) it is the declared string, possibly nil.
 - **Chat backend parsing**: a reply that is not a JSON object raises
   `ContractError`; a non-numeric `confidence` is passed through and rejected
