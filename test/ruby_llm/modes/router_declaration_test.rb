@@ -190,23 +190,37 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
     end
   end
 
-  def test_judge_backend_not_available
-    assert_declaration_error(/RubyLLM::Judge not available/) do
+  def test_judge_backend_without_ruby_llm_judge
+    skip "this RubyLLM ships Judge" if RubyLLM::Modes::Classifiers::Judge.available?
+
+    assert_declaration_error(/RubyLLM.judge is not available in ruby_llm/) do
       mode TutorAgent
       fallback TutorAgent
       classify with: :judge
     end
   end
 
-  def test_judge_backend_is_rejected_even_when_the_constant_exists
-    RubyLLM.const_set(:Judge, Class.new)
-    assert_declaration_error(/RubyLLM::Judge not available/) do
+  def test_judge_backend_with_an_injected_judge
+    router_class = Class.new(RubyLLM::Modes::Router) do
+      mode TutorAgent
+      fallback TutorAgent
+      classify with: :judge, model: "jev-latest", judge: ->(*, **) { }
+    end
+    classifier = router_class.new.classifier
+    assert_instance_of RubyLLM::Modes::Classifiers::Judge, classifier
+    assert_equal "jev-latest", classifier.model
+  end
+
+  def test_judge_backend_when_ruby_llm_ships_judge
+    RubyLLM.define_singleton_method(:judge) { |*, **| }
+    router_class = Class.new(RubyLLM::Modes::Router) do
       mode TutorAgent
       fallback TutorAgent
       classify with: :judge
     end
+    assert_instance_of RubyLLM::Modes::Classifiers::Judge, router_class.new.classifier
   ensure
-    RubyLLM.send(:remove_const, :Judge)
+    RubyLLM.singleton_class.remove_method(:judge)
   end
 
   def test_input_shadowing_a_router_method

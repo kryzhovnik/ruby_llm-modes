@@ -10,8 +10,8 @@ module RubyLLM
     # reason:     why this mode
     # decision:   Decision, or nil when no classifier ran
     # routing_ms: Integer, nil on explicit routes
-    # classifier: { with: "chat" | "custom", model: String | nil }, or nil
-    #             when no backend was called
+    # classifier: { with: "chat" | "judge" | "custom", model: String | nil },
+    #             or nil when no backend was called
     # error:      the exception a failed classifier raised, or nil
     Route = Data.define(:mode, :mode_name, :level, :reason, :decision, :routing_ms, :classifier, :error) do
       def initialize(mode:, mode_name:, level:, reason:, decision: nil, routing_ms: nil, classifier: nil, error: nil)

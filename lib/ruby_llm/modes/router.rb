@@ -106,7 +106,8 @@ module RubyLLM
         # Picks the classifier: +:chat+, +:judge+, or any object responding
         # to +call+ (see Classifiers::Chat for the contract). +classify model:
         # "..."+ alone means +:chat+. Remaining options go to the built-in
-        # backend (+chat_factory:+ for +:chat+).
+        # backend (+chat_factory:+ for +:chat+; +provider:+ and +judge:+ for
+        # +:judge+).
         def classify(with: :chat, model: nil, **options)
           @classifier_spec = { with: with, model: model, options: options }
         end
@@ -192,10 +193,9 @@ module RubyLLM
             nil
           when :judge
             raise DeclarationError, "#{name}: prompt cannot be declared with the :judge backend" if prompt_source
+            return if classifier_spec[:options][:judge] || Classifiers::Judge.available?
 
-            # The judge adapter is not written yet; a RubyLLM that ships
-            # Judge must not turn this into a backend that cannot run.
-            raise DeclarationError, "#{name}: RubyLLM::Judge not available; the :judge backend is not implemented in this version"
+            raise DeclarationError, "#{name}: RubyLLM.judge is not available in ruby_llm #{RubyLLM::VERSION}; the :judge backend needs a release that ships RubyLLM::Judge"
           when Symbol
             raise DeclarationError, "#{name}: unknown classifier backend #{backend.inspect}"
           else
@@ -328,7 +328,7 @@ module RubyLLM
       end
 
       def trace_for(backend)
-        backend.is_a?(Classifiers::Chat) ? backend.trace : { with: "custom", model: nil }
+        backend.respond_to?(:trace) ? backend.trace : { with: "custom", model: nil }
       end
 
       def build_classifier
@@ -336,6 +336,8 @@ module RubyLLM
         case spec[:with]
         when :chat
           Classifiers::Chat.new(model: spec[:model], prompt: prompt_renderer, **spec[:options])
+        when :judge
+          Classifiers::Judge.new(model: spec[:model], **spec[:options])
         else
           spec[:with]
         end

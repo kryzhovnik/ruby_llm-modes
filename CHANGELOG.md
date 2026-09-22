@@ -23,7 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `DeclarationError`, `UnknownMode` (a `KeyError`), and `ContractError`.
 - Three acceptance examples under `examples/`, run as integration tests.
 
-### Not included
-
-- The `:judge` backend. `classify with: :judge` always raises `DeclarationError`
-  in this version; the adapter is a blocker for the first release.
+- The `:judge` classifier backend on `RubyLLM.judge`: one `choice` question
+  over the modes, `confidence` as the concentration of the probability
+  distribution, `provider:` and `judge:` options. A RubyLLM release without
+  `RubyLLM.judge` rejects the backend at `new` unless `judge:` is given.
+- A classifier that responds to `trace` is traced by its own answer.

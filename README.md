@@ -166,12 +166,31 @@ Options:
 
 ### `:judge`
 
-Reserved for `RubyLLM::Judge`, which is not in the released gem yet.
-`classify with: :judge` always raises `DeclarationError` in this version,
-even if a `RubyLLM::Judge` constant is present. When the adapter
-lands, its `confidence` will be the concentration of a probability
-distribution over the modes, a different scale from the chat backend's
-self-report, which is why thresholds are per backend.
+One `RubyLLM.judge` call with a single `choice` question whose options are
+the modes and their descriptions. The state is data, not a prompt: your
+`guidance`, the conversation as `{ role, content }` entries, and the
+latest message. The answer is a probability per mode; the decision's
+`mode_name` is the most likely one and `probabilities` carries the
+distribution.
+
+`confidence` is the **concentration** of that distribution (1.0 when one
+mode takes all the mass, 0.0 when the modes are equally likely), a
+different scale from the chat backend's self-report, which is why
+thresholds are per backend. There is no free text, so `reason` is nil and
+a clarification has to be a mode of its own.
+
+Options:
+
+- `model:` defaults to RubyLLM's `default_judgment_model` (`jev-latest`).
+- `provider:` defaults to `:typesafe`; the model is assumed to exist, so a
+  local Jev-compatible server or a registry without the judgment models
+  still works. Pass `provider: nil` to resolve the model from the registry.
+- `judge:` replaces `RubyLLM.judge` with any callable taking the same
+  arguments and returning a `RubyLLM::Judgment`, for tests.
+
+`RubyLLM.judge` ships in RubyLLM after 2.0.0. On a release without it,
+`classify with: :judge` raises `DeclarationError` when the router is built,
+unless `judge:` is given. `prompt` cannot be declared with this backend.
 
 ## Applying a mode and the reset rule
 
@@ -234,7 +253,8 @@ end
   routes to the fallback with a `ContractError` on `route.error`.
 - A class is accepted only if the class itself responds to `call`; the
   router never calls `new` for you.
-- Custom classifiers are traced as `{ with: "custom", model: nil }`.
+- Custom classifiers are traced as `{ with: "custom", model: nil }`, unless
+  the classifier responds to `trace` and returns its own `{ with:, model: }`.
 
 Pass `classifier:` to `call` to replace the declared backend for one call,
 for tests or shadow runs:
