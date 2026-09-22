@@ -139,6 +139,19 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
     assert_equal({ with: "chat", model: "gemini-3.5-flash-lite" }, route.classifier)
   end
 
+  # A stand-in chat that answers every message with itself (a null object
+  # in an app's tests) has a "model id" that is not a String.
+  def test_trace_keeps_the_declared_model_when_the_chat_reports_no_string_id
+    absorbing = Object.new
+    def absorbing.method_missing(*, **) = self
+    def absorbing.respond_to_missing?(*) = true
+    classifier = Chat.new(model: "gemini-3.5-flash-lite", chat_factory: ->(model:) { absorbing })
+
+    CardRouter.new(card: nil).call("add it", classifier: classifier)
+
+    assert_equal({ with: "chat", model: "gemini-3.5-flash-lite" }, classifier.trace)
+  end
+
   def test_trace_before_any_call_reports_the_declared_model
     assert_equal({ with: "chat", model: "m" }, Chat.new(model: "m").trace)
     assert_equal({ with: "chat", model: nil }, Chat.new.trace)

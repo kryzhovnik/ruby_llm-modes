@@ -86,9 +86,13 @@ module RubyLLM
           @prompt.call(message:, history:, modes:, guidance:, inputs:).to_s
         end
 
+        # The trace is plain data for logs, so only a String model id is
+        # kept: a stand-in chat that answers every message with itself must
+        # not end up serialised into a route.
         def build_chat
           chat = chat_factory ? chat_factory.call(model: model) : RubyLLM.chat(model: model)
-          @resolved_model = chat.model.id if chat.respond_to?(:model) && chat.model.respond_to?(:id)
+          resolved = chat.model.id if chat.respond_to?(:model) && chat.model.respond_to?(:id)
+          @resolved_model = resolved if resolved.is_a?(String)
           chat
         end
 
