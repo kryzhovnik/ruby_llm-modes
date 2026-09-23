@@ -117,7 +117,7 @@ Validation happens in `new`, not at class definition (there is no reliable
 - no `fallback`; fallback not registered with `mode`; fallback has `if:`
 - duplicate registration names
 - a mode without a description
-- `classify with: :judge` when `RubyLLM::Judge` is not defined
+- `classify with: :judge` when `RubyLLM.judge` is not defined and no `judge:` is given
 - `prompt` declared together with `:judge`
 - the same class registered twice
 - a declared input not passed to `new` (`ArgumentError`, the router's own
@@ -158,17 +158,19 @@ Built-in backends:
 
 - `:chat` — `RubyLLM.chat(model:)` with the selection schema
   (`mode` enum of names, `confidence` number, `reason` string) and the
-  system prompt of §6. The latest message is also sent as the user turn.
+  system prompt of §6. The latest message is the user turn, not part of
+  the system prompt.
   `chat_factory: ->(model:) { ... }` replaces the chat constructor (Duck:
   `Llm.chat`, for its usage ledger). `confidence` is the model's
   self-report.
-- `:judge` — `RubyLLM::Judge` with `inputs :modes` and one
-  `choice :mode, question, -> { modes.to_h }`; input
-  `{ message:, history: }`; `guidance` appended to the question. `confidence`
-  is the distribution concentration; `reason` is nil; `probabilities` set.
-  **Not in v0.1.0**: written against a released RubyLLM that ships `Judge`,
-  tested against the real API, not a fake. Until then `with: :judge` raises
-  `DeclarationError` ("RubyLLM::Judge not available").
+- `:judge` — one `RubyLLM.judge` call with a single `choice` question
+  whose options are the modes; the state is `guidance`, the conversation,
+  and the latest message as data. `model:` and `provider:` are passed
+  through when given; `judge:` replaces `RubyLLM.judge` for tests.
+  `confidence` is the distribution concentration; `reason` is nil;
+  `probabilities` set. `RubyLLM.judge` is not in every RubyLLM release:
+  without it `with: :judge` raises `DeclarationError` at `new` unless
+  `judge:` is given.
 
 A custom classifier is any object with that `call`. A class is accepted
 only if the class itself responds to `call`; there is no implicit `new`.
@@ -204,9 +206,6 @@ Modes:
 Conversation:
 user: what does "reluctant" mean?
 assistant: Reluctant means unwilling or hesitant ...
-
-Latest message:
-add it to my cards
 
 Return the structured selection: mode, confidence from 0 to 1, reason.
 ```
@@ -345,9 +344,8 @@ add API.
   default model (`RubyLLM.chat(model: nil)`).
 - **`classify` validation** also raises `DeclarationError` for an unknown
   backend symbol and for a `with:` object that does not respond to `call`.
-  `:judge` is rejected unconditionally in this version, even when a
-  `RubyLLM::Judge` constant exists, because the adapter is not written;
-  the `prompt` conflict is reported first.
+  `:judge` is rejected when `RubyLLM.judge` is missing and no `judge:` is
+  given; the `prompt` conflict is reported first.
 - **Input names** must not shadow a method the router instance already has
   (its own, such as `classifier` or `modes`, or Object's, such as `send`);
   `validate!` raises `DeclarationError` for them.

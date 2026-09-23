@@ -13,11 +13,10 @@ module RubyLLM
       # scale from the chat backend's. There is no free text, so +reason+
       # is always nil.
       #
-      # +model+ defaults to RubyLLM's +default_judgment_model+ and
-      # +provider+ to +:typesafe+; the model is assumed to exist so a local
-      # Jev-compatible server or a registry without the judgment models
-      # still works. +judge:+ replaces RubyLLM.judge; it is called with the
-      # same arguments and must return a Judgment.
+      # +model+ and +provider+ are passed to RubyLLM.judge only when given,
+      # so RubyLLM's own defaults apply otherwise. +judge:+ replaces
+      # RubyLLM.judge; it is called with the same arguments and must return
+      # a Judgment.
       #
       # RubyLLM.judge is not in every RubyLLM release. Without it the
       # backend cannot run, and the router says so when it is built.
@@ -33,7 +32,7 @@ module RubyLLM
           RubyLLM.respond_to?(:judge)
         end
 
-        def initialize(model: nil, provider: :typesafe, judge: nil)
+        def initialize(model: nil, provider: nil, judge: nil)
           @model = model
           @provider = provider
           @judge = judge
@@ -85,7 +84,7 @@ module RubyLLM
 
         def model_options
           options = { model: model }
-          options.merge!(provider: provider, assume_model_exists: true) if provider
+          options[:provider] = provider if provider
           options
         end
 

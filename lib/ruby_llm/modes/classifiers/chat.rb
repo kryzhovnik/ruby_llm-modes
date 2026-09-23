@@ -47,13 +47,14 @@ module RubyLLM
         end
 
         # The built-in system prompt for +modes+ (pairs of name and
-        # description), the normalised +history+, and the latest +message+.
+        # description) and the normalised +history+. The latest +message+ is
+        # the user turn, so it is not repeated here; a custom +prompt+ may
+        # still use it.
         def self.prompt(message:, history:, modes:, guidance: nil)
           sections = [ FRAME_HEAD ]
           sections << guidance unless guidance.nil? || guidance.empty?
           sections << "Modes:\n#{modes.map { |name, description| "- #{name}: #{indent(description)}" }.join("\n")}"
           sections << "Conversation:\n#{history.map { |entry| transcript_line(entry) }.join("\n")}" if history.any?
-          sections << "Latest message:\n#{message}"
           sections << FRAME_TAIL
           sections.join("\n\n")
         end

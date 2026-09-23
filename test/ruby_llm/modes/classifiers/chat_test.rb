@@ -31,9 +31,6 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
     user: what does "reluctant" mean?
     assistant: Reluctant means unwilling or hesitant ...
 
-    Latest message:
-    add it to my cards
-
     Return the structured selection: mode, confidence from 0 to 1, reason.
   TEXT
 
@@ -49,7 +46,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
   def test_prompt_without_history_has_no_conversation_section
     text = Chat.prompt(message: "hello", history: [], modes: MODES)
     refute_includes text, "Conversation:"
-    assert_includes text, "Latest message:\nhello"
+    refute_includes text, "hello"
   end
 
   def test_prompt_renders_role_less_entries_as_bare_lines

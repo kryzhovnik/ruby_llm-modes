@@ -87,7 +87,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
     assert_equal Judge.state(message: "add it to my cards", history: HISTORY, guidance: "The learner has a flashcard open on screen."), call[:state]
     assert_equal %w[tutor card], call[:questions][:mode][:options].keys
     assert_equal ManageCardsAgent.mode_description, call[:questions][:mode][:options]["card"]
-    assert_equal({ model: "jev-latest", provider: :typesafe, assume_model_exists: true }, call[:options])
+    assert_equal({ model: "jev-latest" }, call[:options])
 
     assert_equal "classifier", route.level
     assert_equal ManageCardsAgent, route.mode
@@ -119,10 +119,10 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
     assert_equal "card", route.decision.mode_name
   end
 
-  def test_without_a_provider_the_model_is_not_assumed
+  def test_a_declared_provider_is_passed_through
     judge = FakeJudge.new
-    CardRouter.new(card: nil).call("add it", classifier: Judge.new(model: "jev-latest", provider: nil, judge: judge))
-    assert_equal({ model: "jev-latest" }, judge.last_call[:options])
+    CardRouter.new(card: nil).call("add it", classifier: Judge.new(model: "jev-latest", provider: :typesafe, judge: judge))
+    assert_equal({ model: "jev-latest", provider: :typesafe }, judge.last_call[:options])
   end
 
   def test_trace_before_any_call_reports_the_declared_model
@@ -181,7 +181,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
     router_class = Class.new(CardRouter) { classify with: :judge, model: "jev-latest" }
     route = router_class.new(card: nil).call("add it")
     assert_equal ManageCardsAgent, route.mode
-    assert_equal({ model: "jev-latest", provider: :typesafe, assume_model_exists: true }, judge.last_call[:options])
+    assert_equal({ model: "jev-latest" }, judge.last_call[:options])
   ensure
     RubyLLM.singleton_class.remove_method(:judge)
   end

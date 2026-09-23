@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - 2026-09-22
+## [Unreleased]
 
 ### Added
 
@@ -21,10 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   selection schema, `prompt` overrides (template name or block), and
   `chat_factory:`.
 - `DeclarationError`, `UnknownMode` (a `KeyError`), and `ContractError`.
-- Three acceptance examples under `examples/`, run as integration tests.
-
 - The `:judge` classifier backend on `RubyLLM.judge`: one `choice` question
   over the modes, `confidence` as the concentration of the probability
   distribution, `provider:` and `judge:` options. A RubyLLM release without
   `RubyLLM.judge` rejects the backend at `new` unless `judge:` is given.
 - A classifier that responds to `trace` is traced by its own answer.
+- Three acceptance examples under `examples/`, run as integration tests.

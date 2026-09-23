@@ -144,8 +144,8 @@ is not called when the fallback is the only available mode.
 ### `:chat`
 
 One structured-output turn on `RubyLLM.chat(model:)`. The system prompt
-is a short frame: your `guidance`, the modes with their descriptions, the
-conversation, and the latest message, which is also sent as the user turn.
+is a short frame: your `guidance`, the modes with their descriptions, and
+the conversation. The latest message is the user turn.
 The model returns `mode` (an enum of the available names), `confidence`,
 and `reason`.
 
@@ -181,10 +181,8 @@ a clarification has to be a mode of its own.
 
 Options:
 
-- `model:` defaults to RubyLLM's `default_judgment_model` (`jev-latest`).
-- `provider:` defaults to `:typesafe`; the model is assumed to exist, so a
-  local Jev-compatible server or a registry without the judgment models
-  still works. Pass `provider: nil` to resolve the model from the registry.
+- `model:` and `provider:` are passed to `RubyLLM.judge` as given;
+  without them RubyLLM's own defaults apply (`default_judgment_model`).
 - `judge:` replaces `RubyLLM.judge` with any callable taking the same
   arguments and returning a `RubyLLM::Judgment`, for tests.
 

@@ -19,7 +19,7 @@ class Examples::ContextualRoutingTest < Minitest::Test
     prompt = @results[:chat][:with_card]
     assert_match(/\ADo not answer the user\.|You route the latest user message/, prompt)
     assert_includes prompt, "Route by the learner's intended action.\n#{SENTENCE}\n\nModes:\n- tutor:"
-    assert_includes prompt, "Latest message:\nadd it to my cards"
+    refute_includes prompt, "add it to my cards"
   end
 
   def test_custom_classifier_receives_the_guidance_with_the_card_only_when_given
