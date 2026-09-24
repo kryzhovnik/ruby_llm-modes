@@ -16,9 +16,9 @@ agent = route.mode.new(chat:, user:, card:)
 agent.complete
 
 logger.info route.to_h
-# {"mode"=>"tutor", "decided_by"=>"fallback", "reason"=>"Below confidence threshold",
-#  "duration_ms"=>812, "classifier"=>{"with"=>"chat", "model"=>"gemini-3.5-flash-lite"},
-#  "decision"=>{"mode"=>"showtime", "confidence"=>0.42, "reason"=>"..."}}
+# {"mode_name"=>"tutor", "decided_by"=>"fallback", "reason"=>"Below confidence threshold",
+#  "decision"=>{"mode_name"=>"showtime", "confidence"=>0.42, "reason"=>"..."},
+#  "duration_ms"=>812, "classifier"=>{"with"=>"chat", "model"=>"gemini-3.5-flash-lite"}}
 ```
 
 Plain Ruby on top of [RubyLLM](https://rubyllm.com) 2.x. No Rails hooks,
@@ -129,8 +129,9 @@ last `history n` entries.
 
 A `Route` has `mode` (the class), `mode_name`, `decided_by` (`"caller"`,
 `"classifier"`, or `"fallback"`), `reason`, the classifier's `decision`,
-`routing_ms`, a `classifier` trace (`{ with:, model: }`), and `error`.
-`to_h` gives string keys for logs and drops the class and the error.
+`duration_ms`, a `classifier` trace (`{ with:, model: }`), and `error`.
+`to_h` is the same fields with string keys, for logs, minus the class and
+the error; `Decision#to_h` follows the same rule.
 
 The route is decided by the first rule that applies:
 

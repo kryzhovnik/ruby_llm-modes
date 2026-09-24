@@ -35,7 +35,7 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
     assert_equal "Mode requested by caller", route.reason
     assert_nil route.decision
     assert_nil route.classifier
-    assert_nil route.routing_ms
+    assert_nil route.duration_ms
   end
 
   def test_explicit_respects_availability
@@ -69,7 +69,7 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
     assert_equal "No other mode available", route.reason
     assert_nil route.decision
     assert_nil route.classifier
-    assert_equal 0, route.routing_ms
+    assert_equal 0, route.duration_ms
   end
 
   def test_fallback_only_shortcut_does_not_apply_when_another_mode_is_available
@@ -210,7 +210,7 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
     assert_equal "classifier", route.decided_by
     assert_equal "asked for a card", route.reason
     assert_equal 0.9, route.decision.confidence
-    assert_kind_of Integer, route.routing_ms
+    assert_kind_of Integer, route.duration_ms
     assert_equal({ with: "custom", model: nil }, route.classifier)
   end
 

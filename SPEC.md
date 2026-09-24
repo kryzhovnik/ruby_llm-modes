@@ -230,7 +230,7 @@ Text sources, lightest to fullest:
 
 ```ruby
 Route = Data.define(:mode, :mode_name, :decided_by, :reason, :decision,
-                    :routing_ms, :classifier, :error)
+                    :duration_ms, :classifier, :error)
 # mode: class; mode_name: registration name; decided_by: "caller" | "classifier" | "fallback"
 # decision: Decision or nil (explicit); classifier: { with:, model: } or nil
 # error: Exception or nil, never serialised
@@ -251,13 +251,13 @@ Checks run in this order; the first that fails names the reason.
 Threshold off (`below_confidence` nil): rows 4 and 5 are skipped and a
 known, available mode is accepted whatever its confidence.
 
-`routing_ms` wraps the classifier call and is present on every non-explicit
+`duration_ms` wraps the classifier call and is present on every classifier-run
 route. `to_h` gives string keys and drops `mode` (class) and `error`:
 
 ```ruby
-{ "mode" => "tutor", "decided_by" => "fallback", "reason" => "Below confidence threshold",
-  "duration_ms" => 812, "classifier" => { "with" => "chat", "model" => "gemini-3.5-flash-lite" },
-  "decision" => { "mode" => "showtime", "confidence" => 0.42, "reason" => "..." } }
+{ "mode_name" => "tutor", "decided_by" => "fallback", "reason" => "Below confidence threshold",
+  "decision" => { "mode_name" => "showtime", "confidence" => 0.42, "reason" => "..." },
+  "duration_ms" => 812, "classifier" => { "with" => "chat", "model" => "gemini-3.5-flash-lite" } }
 ```
 
 ## 8. Applying a mode (app responsibility)
@@ -361,7 +361,7 @@ add API.
 - **`new` with an undeclared keyword** raises `ArgumentError`, like a
   missing one.
 - **`Unknown mode <name>`** renders a nil `mode_name` as `Unknown mode nil`.
-- **`routing_ms` on the fallback-only shortcut** is `0`; no backend ran.
+- **`duration_ms` on the fallback-only shortcut** is `0`; no backend ran.
 - **`on_error`** runs on the router instance (`instance_exec`), so inputs
   are visible inside the block. An exception raised by the handler itself
   propagates.
@@ -373,9 +373,9 @@ add API.
   a String nor nil, and `probabilities` that are not nil or a Hash of
   finite numbers, so every accepted `Decision` serialises through
   `Route#to_h`. Any `Numeric` confidence in 0..1 is accepted.
-- **`Decision#to_h`** is `{ "mode", "confidence", "reason" }` plus
+- **`Decision#to_h`** is `{ "mode_name", "confidence", "reason" }` plus
   `"probabilities"` only when set. **`Route#to_h`** keeps nil slots
-  (`"duration_ms" => nil` on an explicit route).
+  (`"duration_ms" => nil` on a caller-decided route).
 - **Trace model** for `:chat` is the id of the model the chat built by the
   current call resolved to; it is reset at the start of every call, so
   when the call fails before a chat exists (or the factory returns an

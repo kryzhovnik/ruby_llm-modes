@@ -101,7 +101,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
     route = CardRouter.new(card: nil).call("add it")
     assert_equal "classifier", route.decided_by
     assert_equal ManageCardsAgent, route.mode
-    assert_equal({ "mode" => "card", "confidence" => 0.8, "reason" => nil, "probabilities" => { "tutor" => 0.1, "card" => 0.9 } }, route.decision.to_h)
+    assert_equal({ "mode_name" => "card", "confidence" => 0.8, "reason" => nil, "probabilities" => { "tutor" => 0.1, "card" => 0.9 } }, route.decision.to_h)
   end
 
   def test_symbol_choice_becomes_a_string_mode_name

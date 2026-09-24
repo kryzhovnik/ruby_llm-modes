@@ -20,7 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   via `if:`, history normalisation, `call`, `explicit`, and the ordered
   outcome table.
 - `Decision` and `Route` value objects; `Route#decided_by` (`"caller"`,
-  `"classifier"`, `"fallback"`) and `Route#to_h` for logs.
+  `"classifier"`, `"fallback"`), `Route#duration_ms`, and `to_h` on both with
+  the field names as string keys, for logs.
 - The `:chat` classifier backend with the built-in routing frame, the
   selection schema, `prompt` overrides (template name or block), and
   `chat_factory:`.

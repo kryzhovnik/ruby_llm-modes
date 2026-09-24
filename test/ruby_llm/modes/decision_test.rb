@@ -15,7 +15,7 @@ class RubyLLM::Modes::DecisionTest < Minitest::Test
 
   def test_to_h_uses_string_keys
     decision = Decision.new(mode_name: "tutor", confidence: 0.9, reason: "asked to explain")
-    assert_equal({ "mode" => "tutor", "confidence" => 0.9, "reason" => "asked to explain" }, decision.to_h)
+    assert_equal({ "mode_name" => "tutor", "confidence" => 0.9, "reason" => "asked to explain" }, decision.to_h)
   end
 
   def test_to_h_includes_probabilities_when_set

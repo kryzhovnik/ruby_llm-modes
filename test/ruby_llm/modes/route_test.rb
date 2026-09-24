@@ -11,7 +11,7 @@ class RubyLLM::Modes::RouteTest < Minitest::Test
   def test_optional_members_default_to_nil
     route = Route.new(mode: TutorAgent, mode_name: "tutor", decided_by: "caller", reason: "Mode requested by caller")
     assert_nil route.decision
-    assert_nil route.routing_ms
+    assert_nil route.duration_ms
     assert_nil route.classifier
     assert_nil route.error
   end
@@ -20,18 +20,18 @@ class RubyLLM::Modes::RouteTest < Minitest::Test
     decision = Decision.new(mode_name: "showtime", confidence: 0.42, reason: "looks like a show")
     route = Route.new(
       mode: TutorAgent, mode_name: "tutor", decided_by: "fallback", reason: "Below confidence threshold",
-      decision: decision, routing_ms: 812, classifier: { with: "chat", model: "gemini-3.5-flash-lite" },
+      decision: decision, duration_ms: 812, classifier: { with: "chat", model: "gemini-3.5-flash-lite" },
       error: RuntimeError.new("boom")
     )
 
     assert_equal(
       {
-        "mode" => "tutor",
+        "mode_name" => "tutor",
         "decided_by" => "fallback",
         "reason" => "Below confidence threshold",
         "duration_ms" => 812,
         "classifier" => { "with" => "chat", "model" => "gemini-3.5-flash-lite" },
-        "decision" => { "mode" => "showtime", "confidence" => 0.42, "reason" => "looks like a show" }
+        "decision" => { "mode_name" => "showtime", "confidence" => 0.42, "reason" => "looks like a show" }
       },
       route.to_h
     )
@@ -40,7 +40,7 @@ class RubyLLM::Modes::RouteTest < Minitest::Test
   def test_to_h_keeps_nil_slots
     route = Route.new(mode: TutorAgent, mode_name: "tutor", decided_by: "caller", reason: "Mode requested by caller")
     assert_equal(
-      { "mode" => "tutor", "decided_by" => "caller", "reason" => "Mode requested by caller",
+      { "mode_name" => "tutor", "decided_by" => "caller", "reason" => "Mode requested by caller",
         "duration_ms" => nil, "classifier" => nil, "decision" => nil },
       route.to_h
     )

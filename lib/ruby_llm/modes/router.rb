@@ -238,7 +238,7 @@ module RubyLLM
       # the declared backend for this call. Returns a Route.
       def call(message, history: [], classifier: nil)
         available = modes
-        return fallback_route("No other mode available", routing_ms: 0) if available.size == 1
+        return fallback_route("No other mode available", duration_ms: 0) if available.size == 1
 
         backend = classifier || self.classifier
         request = {
@@ -251,12 +251,12 @@ module RubyLLM
 
         started = monotonic_ms
         decision, error = run_classifier(backend, request)
-        routing_ms = monotonic_ms - started
+        duration_ms = monotonic_ms - started
         trace = trace_for(backend)
 
-        return fallback_route("Classifier failed: #{error.class}", routing_ms:, classifier: trace, error:) if error
+        return fallback_route("Classifier failed: #{error.class}", duration_ms:, classifier: trace, error:) if error
 
-        resolve(decision, available, routing_ms:, classifier: trace)
+        resolve(decision, available, duration_ms:, classifier: trace)
       end
 
       # Routes to the mode registered as +name+ without a classifier. Raises
@@ -270,8 +270,8 @@ module RubyLLM
 
       private
 
-      def resolve(decision, available, routing_ms:, classifier:)
-        common = { routing_ms:, classifier:, decision: }
+      def resolve(decision, available, duration_ms:, classifier:)
+        common = { duration_ms:, classifier:, decision: }
         registration = available.find { |candidate| candidate.name == decision.mode_name }
         return fallback_route("Unknown mode #{decision.mode_name.nil? ? "nil" : decision.mode_name}", **common) unless registration
 

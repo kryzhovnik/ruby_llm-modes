@@ -13,12 +13,11 @@ module RubyLLM
         super
       end
 
-      # String-keyed hash for logs and serialisation. "probabilities" is
-      # present only when the classifier set them.
+      # The fields with string keys, for logs and serialisation.
+      # "probabilities" is present only when the classifier set them.
       def to_h
-        hash = { "mode" => mode_name, "confidence" => confidence, "reason" => reason }
-        hash["probabilities"] = probabilities.transform_keys(&:to_s) if probabilities
-        hash
+        hash = super.transform_keys(&:to_s)
+        probabilities ? hash.merge("probabilities" => probabilities.transform_keys(&:to_s)) : hash.except("probabilities")
       end
     end
   end
