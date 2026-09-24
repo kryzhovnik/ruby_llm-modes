@@ -17,8 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `RubyLLM::Modes::Router` with the declaration DSL (`inputs`, `mode`,
   `guidance`, `prompt`, `history`, `fallback`, `classify`, `on_error`),
   inheritance that copies declarations, validation in `new`, availability
-  via `if:`, history normalisation, `call`, `force`, and the ordered
-  outcome table.
+  via `if:`, history normalisation with `history last: n` / `history :all`,
+  `call`, `force`, and the ordered outcome table.
 - `Registration` value objects: what `Router#modes` returns and what a
   classifier receives as `modes:`.
 - `Decision` and `Route` value objects; `Route#decided_by` (`"caller"`,

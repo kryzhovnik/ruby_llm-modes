@@ -319,11 +319,31 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
     assert_raises(ArgumentError) { route(FakeClassifier.deciding(mode_name: "card"), history: [ 42 ]) }
   end
 
-  def test_history_limit_keeps_the_last_entries
-    router_class = Class.new(ThresholdRouter) { history 2 }
+  def test_history_last_keeps_the_last_entries
+    router_class = Class.new(ThresholdRouter) { history last: 2 }
     classifier = FakeClassifier.deciding(mode_name: "card")
     route(classifier, router: router_class, history: %w[a b c d])
     assert_equal %w[c d], classifier.last_call[:history].map { |entry| entry[:content] }
+  end
+
+  def test_history_all_undoes_an_inherited_limit
+    limited = Class.new(ThresholdRouter) { history last: 2 }
+    router_class = Class.new(limited) { history :all }
+    classifier = FakeClassifier.deciding(mode_name: "card")
+    route(classifier, router: router_class, history: %w[a b c d])
+    assert_equal %w[a b c d], classifier.last_call[:history].map { |entry| entry[:content] }
+  end
+
+  def test_history_rejects_other_declarations
+    assert_raises(ArgumentError) { Class.new(ThresholdRouter) { history 6 } }
+    assert_raises(ArgumentError) { Class.new(ThresholdRouter) { history :all, last: 6 } }
+    assert_raises(ArgumentError) { Class.new(ThresholdRouter) { history :some } }
+  end
+
+  def test_history_last_takes_a_positive_integer
+    assert_raises(ArgumentError) { Class.new(ThresholdRouter) { history last: 0 } }
+    assert_raises(ArgumentError) { Class.new(ThresholdRouter) { history last: -1 } }
+    assert_raises(ArgumentError) { Class.new(ThresholdRouter) { history last: "6" } }
   end
 
   # Tracing

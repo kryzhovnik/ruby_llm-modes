@@ -89,7 +89,7 @@ class ChatModeRouter < RubyLLM::Modes::Router
     text
   end
 
-  history 6                                 # optional; default: all given
+  history last: 6                           # optional; default: all given
   fallback TutorAgent, below_confidence: 0.6
   classify with: :chat, model: "gemini-3.5-flash-lite"
   on_error { |error| Rails.error.report(error, handled: true) }   # optional
@@ -129,8 +129,10 @@ the same.
 
 `history:` entries are `{ role:, content: }` hashes, `RubyLLM::Message`
 objects, Rails message records responding to `to_llm`, or plain strings.
-The router normalises them before any backend sees them and keeps only the
-last `history n` entries.
+The router normalises them before any backend sees them. `history last: n`
+keeps the last `n` entries as given, whatever their roles; `history :all`,
+the default, keeps every entry, and a subclass can declare it to undo an
+inherited limit.
 
 A `Route` has `mode_class`, `mode_name`, `decided_by` (`"caller"`,
 `"classifier"`, or `"fallback"`), `reason`, the classifier's `decision`,

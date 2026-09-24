@@ -12,7 +12,7 @@ module RubyLLM
     #     mode ShowtimeAgent, if: -> { user.showtime_enabled? }
     #
     #     guidance { "The learner has a flashcard open." if card }
-    #     history 6
+    #     history last: 6
     #     fallback TutorAgent, below_confidence: 0.6
     #     classify with: :chat, model: "gemini-3.5-flash-lite"
     #   end
@@ -80,9 +80,20 @@ module RubyLLM
           @prompt_source = block || name
         end
 
-        # Keeps only the last +n+ history entries.
-        def history(n)
-          @history_limit = Integer(n)
+        # How much of the +history:+ given to +call+ reaches the classifier.
+        # <tt>history last: 6</tt> keeps the last six entries as given, any
+        # role; <tt>history :all</tt> keeps every entry, which is the
+        # default and lets a subclass undo an inherited limit.
+        def history(scope = nil, last: nil)
+          unless (scope == :all) ^ !last.nil?
+            raise ArgumentError, "history takes :all or last: n, got #{[ scope, last ].compact.inspect}"
+          end
+
+          unless last.nil? || (last.is_a?(Integer) && last.positive?)
+            raise ArgumentError, "history last: takes a positive Integer, got #{last.inspect}"
+          end
+
+          @history_limit = last
         end
 
         # The mode used when the classifier is ignored. +below_confidence:+

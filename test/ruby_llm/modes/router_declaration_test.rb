@@ -16,7 +16,7 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
     mode PlainAgent, "A plain agent"
 
     guidance { card ? "A card is open." : "No card." }
-    history 6
+    history last: 6
     fallback TutorAgent, below_confidence: 0.6
     classify with: FakeClassifier.new
   end
@@ -100,7 +100,7 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
   class SubRouter < BaseRouter
     mode Class.new(RubyLLM::ModeAgent) { mode_description "Extra" }, as: :extra
     fallback ClarifyAgent
-    history 2
+    history last: 2
     guidance "Sub guidance"
   end
 

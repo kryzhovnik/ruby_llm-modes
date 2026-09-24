@@ -71,7 +71,7 @@ class ChatModeRouter < RubyLLM::Modes::Router
     text
   end
 
-  history 6                                 # optional; default: all given
+  history last: 6                           # optional; default: all given
   fallback TutorAgent, below_confidence: 0.6
   classify with: :chat, model: "gemini-3.5-flash-lite"
   on_error { |error| Rails.error.report(error, handled: true) }   # optional
@@ -92,7 +92,9 @@ Macros:
   receive the same resolved string.
 - `prompt name = nil, &block` — replaces the chat backend's built-in system
   prompt (§6). Incompatible with `:judge`; validated at `new`.
-- `history n` — keep only the last `n` history entries.
+- `history last: n` — keep only the last `n` history entries as given, any
+  role; `history :all` (the default) keeps every entry. Anything else is an
+  `ArgumentError` at declaration time.
 - `fallback klass, below_confidence: nil` — required. The mode used when
   the classifier is ignored. `below_confidence` nil disables the threshold.
 - `classify with:, model: nil, **options` — `with:` is `:chat`, `:judge`, or
@@ -141,7 +143,7 @@ Availability invariants:
 
 `history:` entries are `{ role:, content: }` hashes, `RubyLLM::Message`s, or
 strings. The router normalises them to `[{ role: Symbol | nil, content:
-String }]` (a string becomes `{ role: nil, content: }`), applies `history n`,
+String }]` (a string becomes `{ role: nil, content: }`), applies `history last: n`,
 and only then calls any backend; custom classifiers see the normalised
 form. `classifier:` overrides the declared backend for this call (tests,
 shadow runs).
