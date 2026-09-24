@@ -15,7 +15,8 @@ require_relative "modes/router"
 require_relative "modes/mode"
 require_relative "mode_agent"
 
-# Route one conversation between agents: one decision per turn, traced.
+# One chat, one configuration per turn: a classifier picks the mode
+# before each answer, and the decision is a value the app can log.
 module RubyLLM
   module Modes
   end

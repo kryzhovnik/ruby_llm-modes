@@ -288,8 +288,9 @@ module RubyLLM
       end
 
       # Routes +message+. +history:+ entries are <tt>{ role:, content: }</tt>
-      # hashes, RubyLLM::Message objects, or strings. +classifier:+ replaces
-      # the declared backend for this call. Returns a Route.
+      # hashes, RubyLLM::Message objects, records responding to +to_llm+,
+      # or strings. +classifier:+ replaces the declared backend for this
+      # call. Returns a Route.
       #
       # The message and the history entries are cut to the declared
       # +truncate+ caps first.

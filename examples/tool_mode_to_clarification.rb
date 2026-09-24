@@ -3,14 +3,16 @@
 # Acceptance example 2: a tool mode followed by a clarification mode on
 # one RubyLLM::Chat object reused for both turns.
 #
-# This is the secondary case of "Reusing one chat object" in the README. A Rails app loads the chat
-# record per turn and needs no reset; a script or a job that runs two
-# modes on one chat object does. The chat starts with base instructions.
-# ManageCardsAgent adds tools, a schema, and high-effort thinking. Before
-# ClarifyAgent takes the next turn the app applies the reset: base
-# instructions back (which drops the appended mode instructions), tools
-# and schema cleared. ClarifyAgent then adds its own instructions and
-# low-effort thinking.
+# A Rails app loads the chat record per turn and needs no reset; a
+# script or a job that runs two modes on one chat object does, because
+# Agent's constructor only adds configuration. The chat starts with base
+# instructions. ManageCardsAgent adds tools, a schema, and high-effort
+# thinking. Before ClarifyAgent takes the next turn the app applies the
+# reset: base instructions back (which drops the appended mode
+# instructions), tools and schema cleared. Thinking enabled by a mode
+# stays on until the next with_thinking; add with_thinking(false) when
+# the model has an off control in RubyLLM's registry. ClarifyAgent then
+# adds its own instructions and low-effort thinking.
 #
 # Only the provider request is stubbed; the chat is a real RubyLLM::Chat.
 #
@@ -73,7 +75,7 @@ module Examples
       { after_manage_cards:, after_clarify: }
     end
 
-    # The reset from the README for a chat object reused across turns.
+    # The reset for a chat object reused across turns.
     def self.reset(chat)
       chat.with_instructions(BASE_INSTRUCTIONS)
           .with_tools(nil)

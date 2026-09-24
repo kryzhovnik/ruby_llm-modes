@@ -1,27 +1,30 @@
 # ruby_llm-modes
 
-Route one conversation between agents: one decision per turn, traced.
+One chat, one configuration per turn: a small classifier picks the mode before each answer.
 
-A chat app rarely has one assistant. The same conversation needs a tutor
-one turn, a tool-wielding card manager the next, and a short clarifying
-question after that. `ruby_llm-modes` lets you declare those agents as
-**modes** of one router, ask the router which mode should take the
-current turn, and get back a **route** that says which mode, why, and what
-the classifier actually said. The router never touches the chat; your app
-applies the mode.
+A **mode** is the configuration of one turn: instructions, tools, model, thinking. Neighbouring messages in one chat can want very different ones, and putting every tool and instruction into one system prompt makes every turn pay for all of them. Instead the conversation stays one chat with one history; before each answer a small classifier reads the latest message and a window of history, the router picks a mode, and your app applies it to the chat. The model that answers never sees another mode's tools or instructions, and the decision is a value you can log and test: which mode, why, and what the classifier actually said.
 
 ```ruby
-route = ChatModeRouter.new(user:, card:).call(message.content, history:)
+route = SupportRouter.new(customer:, order:).call(message.content, history:)
 route.mode(chat:).complete
 
-logger.info route.to_h
-# {"mode_name"=>"tutor", "decided_by"=>"fallback", "reason"=>"Below confidence threshold",
-#  "decision"=>{"mode_name"=>"showtime", "confidence"=>0.42, "reason"=>"..."},
-#  "duration_ms"=>812, "classifier"=>{"with"=>"chat", "model"=>"gemini-3.5-flash-lite"}}
+route.to_h
+# {
+#   "mode_name" => "help",
+#   "decided_by" => "fallback",
+#   "reason" => "Below confidence threshold",
+#   "decision" => {
+#     "mode_name" => "returns",
+#     "confidence" => 0.42,
+#     "reason" => nil,
+#     "probabilities" => { "help" => 0.31, "returns" => 0.45, "orders" => 0.24 }
+#   },
+#   "duration_ms" => 812,
+#   "classifier" => { "with" => "judge", "model" => "jev-1.13.0" }
+# }
 ```
 
-Plain Ruby on top of [RubyLLM](https://rubyllm.com) 2.x. No Rails hooks,
-no registry, no prompt files of its own.
+Plain Ruby on top of [RubyLLM](https://rubyllm.com) 2.x. No Rails hooks, no registry, no built-in prompt files.
 
 ## Installation
 
@@ -33,274 +36,109 @@ Requires `ruby_llm >= 2.0` and Ruby 3.2 or newer.
 
 ## Modes
 
-A mode is a `RubyLLM::Agent` with a routing description. Subclass
-`RubyLLM::ModeAgent`, or extend `RubyLLM::Modes::Mode` into your own agent
-base class. `ModeAgent` sits next to `RubyLLM::Agent` on purpose, as the
-one class an app subclasses; everything else the gem defines lives under
-`RubyLLM::Modes`.
+A mode is a `RubyLLM::Agent` with a routing description. Subclass `RubyLLM::ModeAgent`, or extend `RubyLLM::Modes::Mode` into your own agent base class.
 
 ```ruby
-class TutorAgent < RubyLLM::ModeAgent
+class HelpAgent < RubyLLM::ModeAgent
   mode_description <<~TEXT
-    Explains words and grammar, corrects the learner, keeps the
-    conversation going. A bare word or phrase is a request to explain it.
+    Answers questions about delivery, payment, sizes, and store policy.
+    No account access: a question about a specific order is not for this mode.
   TEXT
 
-  instructions "You are a patient English tutor."
+  instructions "You are a friendly support assistant for an online store. Keep answers short."
+  thinking effort: :low
 end
 
-class ManageCardsAgent < RubyLLM::ModeAgent
-  mode_description "Creates, edits, or deletes flashcards. Only when the learner asks for it."
-  mode_name "cards"          # optional; default derived from the class name
+class ReturnsAndExchangesAgent < RubyLLM::ModeAgent
+  mode_description "Returns, exchanges, and refunds for an order the customer already has. Only when the customer asks for one."
+  mode_name "returns"        # optional; default derived from the class name
 
-  instructions "Manage the learner's flashcards with the tools."
-  tools CreateCard, DeleteCard
+  instructions "Handle the return or exchange with the tools. Check the policy before promising anything."
+  tools FindOrder, CreateReturn, ExchangeItem
   thinking effort: :high
 end
 ```
 
-The default `mode_name` is the class name with the trailing `Agent`
-removed, namespaces kept, underscored: `TutorAgent` is `"tutor"`,
-`Chat::TutorAgent` is `"chat/tutor"`, `TutorModeAgent` is `"tutor_mode"`.
-Neither `mode_description` nor `mode_name` is inherited: every routable
-class declares its own description.
+The default `mode_name` is the class name with the trailing `Agent` removed, namespaces kept, underscored: `HelpAgent` is `"help"`, `Support::HelpAgent` is `"support/help"`. Neither `mode_description` nor `mode_name` is inherited.
 
-A mode takes one turn of a chat that already has its own system prompt, so
-`instructions` in a mode defaults to `append: true` and `persist: false`:
-the mode's prompt is added after the chat's and, on a Rails chat record,
-kept out of the stored history. Declare `append: false` or `persist: true`
-to override. The defaults apply to explicit `instructions` declarations
-only; a conventional `instructions.txt.erb` template with no declaration
-keeps Agent's defaults, so declare `instructions` in a mode.
+A mode takes one turn of a chat that already has its own system prompt, so `instructions` in a mode defaults to `append: true, persist: false`: the mode's prompt follows the chat's and stays out of a Rails record's stored history. Declare either option to override. The defaults apply to an explicit `instructions` declaration only, so declare one in every mode.
 
 ## The declaration
 
 ```ruby
-class ChatModeRouter < RubyLLM::Modes::Router
-  inputs :user, :card                       # runtime context, as in Agent
+class SupportRouter < RubyLLM::Modes::Router
+  inputs :customer, :order                  # runtime context, as in Agent
 
-  mode TutorAgent                           # description from mode_description
+  mode HelpAgent                            # description from mode_description
   mode ClarifyAgent
-  mode ManageCardsAgent, "Manages flashcards"          # inline description wins
-  mode ShowtimeAgent, if: -> { user.showtime_enabled? } # availability per call
-  mode Chat::ReviewAgent, as: :review                  # registration name
+  mode ReturnsAndExchangesAgent
+  mode OrdersAgent, "Order status, tracking, and delivery dates"   # inline description wins
+  mode ConciergeAgent, if: -> { customer.vip? }                    # availability per call
+  mode Support::EscalationAgent, as: :escalate                     # registration name
 
   instructions do                           # optional; string, block, or template
-    text = "Duck is an English-learning app. Route by the learner's intended action."
-    text += "\nThe learner has a flashcard open on screen." if card
+    text = "Route by what the customer wants done now."
+    text += "\nThe customer is looking at order #{order.number}." if order
     text
   end
 
   history last: 6                           # optional; default: all given
   truncate message: 30_000, history_entry: 2_000   # optional; these are the defaults
-  fallback TutorAgent, below_confidence: 0.6
+  fallback HelpAgent, below_confidence: 0.6
   classify_with :chat, model: "gemini-3.5-flash-lite"
   on_error { |error| Rails.error.report(error, handled: true) }   # optional
 end
 ```
 
-- `inputs` are required keywords of `new` (`card: nil` counts as passed)
-  and become methods inside `if:` and `instructions` blocks.
-- `mode` registers an agent class once. Without an inline description the
-  class must have a `mode_description`. The router's declaration wins over
-  the class's: an inline description overrides `mode_description`, and
-  `as:` overrides `mode_name`, which in turn overrides the name derived
-  from the class.
-- `instructions` is the app's text for the classifier, ahead of the modes
-  and the conversation. It takes the same forms as `instructions` in an
-  Agent: a string, a block, or the conventional template
-  `app/prompts/chat_mode_router/instructions.txt.erb`, selected by a bare
-  `instructions` or by keyword locals (`instructions deck: -> { card.deck }`;
-  a Proc runs on the router, and the inputs are locals too). Inside a
-  block, `prompt("name", **locals)` renders a template from the same
-  directory. Both backends receive the same resolved string.
-- `truncate` caps, in characters, what reaches the classifier: the routed
-  `message:` keeps its first and last half, each `history_entry:` keeps its
-  head, and a marker names how many characters were cut. Pass only the caps
-  to change; `nil` disables one. See [Input size](#input-size).
-- `fallback` is required. It is the mode used whenever the classifier is
-  ignored: it raised, named an unknown or unavailable mode, or scored below
-  `below_confidence`. Pass no threshold to accept any confidence.
-- `classify_with` is required: `:chat`, `:judge`, or a classifier object
-  (see [Plugging a custom classifier](#plugging-a-custom-classifier)).
-- Subclassing a router copies its declarations. `mode` appends to the
-  inherited list; the other macros replace.
+- `inputs` are required keywords of `new` (`order: nil` counts as passed) and become methods inside `if:` and `instructions` blocks.
+- `instructions` takes the same forms as in an Agent: a string, a block, or the conventional `app/prompts/support_router/instructions.txt.erb` template with keyword locals. It resolves on the router instance, and every backend receives the same string.
+- `history :all` is the default; it lets a subclass undo an inherited `last:`.
+- `truncate` cuts the routed message to its first and last half and each history entry to its head, with a marker for the cut. `nil` disables a cap. Keep `entries × history_entry + message` under your provider's request limit.
+- `fallback` is the mode used whenever the classifier is ignored (see the [outcome table](#outcomes)). Pass no threshold to accept any confidence.
+- Subclassing copies the declarations. `mode` appends to the inherited list; the other macros replace.
 
-The declaration is validated when a router is built with `new`, and every
-problem is a `RubyLLM::Modes::DeclarationError`: no fallback, no
-classifier, a fallback
-that is not registered or has an `if:`, duplicate names, a mode without a
-description, the same class registered twice, an unavailable backend, or a
-missing instructions template.
+The declaration is validated when the router is built with `new`; every problem raises `DeclarationError`.
 
-### Routing a turn
+## Routing a turn
 
 ```ruby
-router = ChatModeRouter.new(user: current_user, card: open_card)
-router.modes                    # registrations available for this call
+router = SupportRouter.new(customer: current_customer, order: current_order)
+router.modes                    # modes available for this call
 route = router.call(message, history: chat.messages)
-route = router.force("showtime")      # the app chose the mode; raises UnknownMode if unavailable
+route = router.force("returns")       # the customer pressed "Return an item"; raises UnknownMode if unavailable
 ```
 
-`call` lets the classifier decide. `force` is for the turns the app has
-already decided, such as a button or a command that starts a mode by
-name: no classifier runs, `if:` still applies, and the result is a
-`Route` like any other, so the code that applies and logs a route stays
-the same.
-
-`history:` entries are `{ role:, content: }` hashes, `RubyLLM::Message`
-objects, Rails message records responding to `to_llm`, or plain strings.
-The router normalises them before any backend sees them. `history last: n`
-keeps the last `n` entries as given, whatever their roles; `history :all`,
-the default, keeps every entry, and a subclass can declare it to undo an
-inherited limit.
-
-### Input size
-
-Every backend has an input limit, and one oversized entry would cost the
-whole turn its routing: Jev answers a request over about 170k characters
-with a 400 (`max_tokens_exceeded`). So the router cuts what it sends,
-whatever the backend, before any classifier sees it. By default the
-routed message keeps its first and last 15,000 characters (the intent of
-a long paste is at one end or the other, never in the middle) and each
-history entry keeps its first 2,000; a marker between the kept parts says
-how many characters were omitted. `truncate message:, history_entry:`
-changes the caps, and `nil` disables one. The number of entries is still
-`history last: n`, so keep `entries × history_entry + message` under the
-backend's limit.
-
-A `Route` has `mode_class`, `mode_name`, `decided_by` (`"caller"`,
-`"classifier"`, or `"fallback"`), `reason`, the classifier's `decision`,
-`duration_ms`, a `classifier` trace (`{ with:, model: }`), `error`, and the
-router's `inputs`. `route.mode(chat:)` is the mode as an agent on that
-chat (see [Applying a mode](#applying-a-mode)). `to_h`
-is the same fields with string keys, for logs, minus the class, the error,
-and the inputs; `Decision#to_h` follows the same rule.
-
-The route is decided by the first rule that applies:
-
-| Situation                                        | decided_by     | reason                         |
-|--------------------------------------------------|----------------|--------------------------------|
-| `force(name)`                                    | `"caller"`     | `"Mode requested by caller"`   |
-| only the fallback is available                   | `"fallback"`   | `"No other mode available"`    |
-| classifier raised, or violated the contract      | `"fallback"`   | `"Classifier failed: <class>: <message>"` |
-| decision names an unknown or unavailable mode    | `"fallback"`   | `"Unknown mode <name>"`        |
-| threshold on, confidence nil                     | `"fallback"`   | `"Confidence not scored"`      |
-| threshold on, confidence below it                | `"fallback"`   | `"Below confidence threshold"` |
-| otherwise                                        | `"classifier"` | the decision's reason          |
-
-The message in `Classifier failed` is the first line of the exception's
-message, cut at 200 characters, and left out when it is only the class
-name: a Jev 400 reads `Classifier failed: RubyLLM::BadRequestError:
-{"detail":{"error_type":"max_tokens_exceeded"}}`.
-
-Every mode a route returns is available for that call, and the classifier
-is not called when the fallback is the only available mode.
-
-## Backends and what `confidence` means
-
-### `:chat`
-
-One structured-output turn on `RubyLLM.chat(model:)`. The system prompt
-is a short frame: your `instructions`, the modes with their descriptions,
-and the conversation. The latest message is the user turn.
-The model returns `mode` (an enum of the available names), `confidence`,
-and `reason`.
-
-`confidence` is the model's **self-report** from 0 to 1. It is useful for
-telling a hedge from a clear call, but it is not calibrated, and its scale
-depends on the model. Tune `below_confidence` per model by looking at
-routes in your logs; do not carry a threshold from one backend to another.
-
-Options:
-
-- `chat_factory: ->(model:) { ... }` replaces the chat constructor, for
-  apps that route every LLM call through their own wrapper.
-
-The frame itself is not configurable. An app that needs a different one
-plugs a [custom classifier](#plugging-a-custom-classifier), or subclasses
-`RubyLLM::Modes::Classifiers::Chat` and overrides `self.prompt`.
-
-### `:judge`
-
-One `RubyLLM.judge` call with a single `choice` question whose options are
-the modes and their descriptions. The state is data, not a prompt: your
-`instructions`, the conversation as `{ role, content }` entries, and the
-latest message. The answer is a probability per mode; the decision's
-`mode_name` is the most likely one and `probabilities` carries the
-distribution.
-
-`confidence` is the **concentration** of that distribution (1.0 when one
-mode takes all the mass, 0.0 when the modes are equally likely), a
-different scale from the chat backend's self-report, which is why
-thresholds are per backend. There is no free text, so `reason` is nil and
-a clarification has to be a mode of its own.
-
-Options:
-
-- `model:` and `provider:` are passed to `RubyLLM.judge` as given;
-  without them RubyLLM's own defaults apply (`default_judgment_model`).
-- `judge:` replaces `RubyLLM.judge` with any callable taking the same
-  arguments and returning a `RubyLLM::Judgment`, for tests.
-
-`RubyLLM.judge` ships in RubyLLM after 2.0.0. On a release without it,
-`classify_with :judge` raises `DeclarationError` when the router is built,
-unless `judge:` is given.
+`call` lets the classifier decide. `force` is for the turns the app has already decided, such as a button that starts a mode by name: no classifier runs, `if:` still applies, and the result is a `Route` like any other. `history:` entries are `{ role:, content: }` hashes, `RubyLLM::Message` objects, Rails message records responding to `to_llm`, or plain strings. The classifier is not called when the fallback is the only available mode.
 
 ## Applying a mode
 
-The router never touches the chat. `route.mode(chat:)` does: it is the
-mode's `Agent.new(chat:, inputs: route.inputs)`, so it configures the chat
-you pass in and returns the agent wrapping it.
+`route.mode(chat:)` is the mode's `Agent.new(chat:, inputs: route.inputs)`: it configures the chat you pass in and returns the agent wrapping it. The agent takes the inputs it declared and ignores the rest. Extra keywords go to `Agent.new` as given: `route.mode(chat:, session:)`.
 
 ```ruby
 route.mode(chat:).complete
 ```
 
-The router's inputs are handed to the agent as its `inputs:`. The agent
-takes the names it declared with `inputs` and ignores the rest, so a mode
-declares only what it uses. Extra keywords go to `Agent.new` as given:
-`route.mode(chat:, session:)`.
+Run the turn through the agent, not the chat, so the agent's `rescue_from` handlers apply. Agent's constructor **adds** configuration to the chat: mode instructions append to the system prompt; tools, schema, and thinking are set only when the mode declares them. A chat built for the turn (a Rails chat record, or a fresh `RubyLLM.chat`) needs nothing else. A chat object reused across turns keeps the previous mode's configuration and needs a reset before the next mode; `examples/tool_mode_to_clarification.rb` shows one.
 
-Run the turn through the agent, not the chat: `agent.complete` is
-`chat.complete` inside the agent's `rescue_from` handlers, while
-`chat.complete` skips them.
+## Backends and what `confidence` means
 
-Agent's constructor **adds** configuration to the chat: mode instructions
-append to the chat's system prompt (see [Modes](#modes)); tools, schema,
-and thinking are set only when the mode declares them. The usual setup
-gives each turn its own chat object, so this is all there is to it: a
-Rails chat record loaded for the turn builds a fresh `RubyLLM::Chat` from
-its stored messages, and a `RubyLLM.chat` created for the turn is fresh by
-definition. Nothing from the previous mode carries over but the messages.
+### `:chat`
 
-### Reusing one chat object for several turns
+One structured-output turn on `RubyLLM.chat(model:)`. The system prompt is a fixed frame around your `instructions`, the modes, and the conversation; the latest message is the user turn. The model returns `mode` (an enum of the available names), `confidence`, and `reason`.
 
-A script, a console session, or a job that runs two modes back to back on
-one `RubyLLM::Chat` keeps the previous mode's configuration: its appended
-instructions, tools, schema, and thinking. Two ways to start the next turn
-clean:
+`confidence` is the model's **self-report** from 0 to 1. It tells a hedge from a clear call, but it is not calibrated, and its scale depends on the model. Tune `below_confidence` per model from your logs, and do not carry a threshold from one backend to another.
 
-- `route.mode` with no `chat:` builds a fresh chat through Agent; the app
-  copies over the user and assistant messages it wants to keep.
-- Restore the same object to its base configuration before the next mode:
+`chat_factory: ->(model:) { ... }` replaces the chat constructor. The frame is not configurable: subclass `RubyLLM::Modes::Classifiers::Chat` and override `self.prompt`, or plug a custom classifier.
 
-  ```ruby
-  chat.with_instructions(base_prompt)   # base stays, appended mode instructions go
-      .with_tools(nil)
-      .with_schema(nil)
-  ```
+### `:judge`
 
-  Thinking enabled by a mode stays on until the next `with_thinking`.
-  Add `with_thinking(false)` to the reset when the model has an off
-  control in RubyLLM's registry (Anthropic and Gemini 2.5 models do;
-  `with_thinking(false)` raises for a model without one), or set the
-  baseline `with_thinking(...)` you want every mode to start from.
+One `RubyLLM.judge` call with a single `choice` question whose options are the modes and their descriptions. The answer is a probability per mode: the decision's `mode_name` is the most likely one and `probabilities` carries the distribution.
 
-`examples/tool_mode_to_clarification.rb` shows the reset on a real
-`RubyLLM::Chat`.
+`confidence` is the **concentration** of that distribution: 1.0 when one mode takes all the mass, 0.0 when the modes are equally likely. There is no free text, so `reason` is nil and a clarification has to be a mode of its own.
 
-## Plugging a custom classifier
+`model:` and `provider:` are passed to `RubyLLM.judge` as given; without them RubyLLM's defaults apply. `judge:` replaces `RubyLLM.judge` with any callable taking the same arguments and returning a `RubyLLM::Judgment`. `RubyLLM.judge` is not in ruby_llm 2.0.0; it is on RubyLLM's main branch. On a release without it, `classify_with :judge` raises `DeclarationError` unless `judge:` is given.
+
+## Custom classifiers
 
 A classifier is any object with this method:
 
@@ -312,39 +150,65 @@ class KeywordClassifier
   end
 end
 
-class ChatModeRouter < RubyLLM::Modes::Router
-  # ...
-  classify_with KeywordClassifier.new
-end
+classify_with KeywordClassifier.new
 ```
 
-- `modes` is the `Registration` values available on this call, the same
-  objects `router.modes` returns: each has `name`, `description`, and
-  `klass`, the agent class. `history` is the normalised
-  `[{ role:, content: }]`; `instructions` is the resolved string or nil;
-  `inputs` is the hash passed to `new`.
-- Return a `Decision`. `mode_name` is a String or nil, `confidence` is a
-  number from 0 to 1 or nil for "not scored", `reason` and
-  `probabilities` are optional. Anything else is a contract violation and
-  routes to the fallback with a `ContractError` on `route.error`.
-- A class is accepted only if the class itself responds to `call`; the
-  router never calls `new` for you.
-- Custom classifiers are traced as `{ with: "custom", model: nil }`, unless
-  the classifier responds to `trace` and returns its own `{ with:, model: }`.
-
-Pass `classifier:` to `call` to replace the declared backend for one call,
-for tests or shadow runs:
+A class is accepted only if the class itself responds to `call`; the router never calls `new`. Pass `classifier:` to `call` to replace the declared backend for one call, for tests or shadow runs:
 
 ```ruby
 router.call(message, history:, classifier: FakeClassifier.new(decision))
 ```
 
+## Reference
+
+### Classifier contract
+
+`call(message:, history:, modes:, instructions:, inputs:)` returns a `Decision`.
+
+- `message` is the routed message, cut to the `truncate` cap.
+- `history` is `[{ role:, content: }]`, normalised and cut.
+- `modes` is what `router.modes` returns: the modes available on this call, each responding to `name`, `description`, and `klass`.
+- `instructions` is the resolved string or nil; `inputs` is the hash passed to `new`.
+- `Decision`: `mode_name` is a String or nil, `confidence` a number from 0 to 1 or nil for "not scored", `reason` and `probabilities` optional. Anything else is a `ContractError` and routes to the fallback.
+- A classifier responding to `trace` is traced by its own `{ with:, model: }`; otherwise as `{ with: "custom", model: nil }`.
+
+### Route
+
+| Field         | Value                                                        |
+|---------------|--------------------------------------------------------------|
+| `mode_class`  | the agent class                                              |
+| `mode_name`   | its registration name                                        |
+| `decided_by`  | `"caller"`, `"classifier"`, or `"fallback"`                  |
+| `reason`      | why this mode (see below)                                    |
+| `decision`    | the classifier's `Decision`, or nil when none ran            |
+| `duration_ms` | classifier time, nil on caller-decided routes                |
+| `classifier`  | `{ with:, model: }`, or nil when no backend was called       |
+
+`route.error` is the exception a failed classifier raised, and `route.inputs` the router's inputs; `route.mode(chat:, **options)` is `mode_class.new(chat:, inputs:, **options)`. `to_h` is the fields above with string keys, minus `mode_class`; `Decision#to_h` has string keys and omits `probabilities` when nil.
+
+### Outcomes
+
+The route is decided by the first rule that applies:
+
+| Situation                                     | decided_by     | reason                                 |
+|-----------------------------------------------|----------------|----------------------------------------|
+| `force(name)`                                 | `"caller"`     | `"Mode requested by caller"`           |
+| only the fallback is available                | `"fallback"`   | `"No other mode available"`            |
+| classifier raised, or violated the contract   | `"fallback"`   | `"Classifier failed: <class>: <message>"` |
+| decision names an unknown or unavailable mode | `"fallback"`   | `"Unknown mode <name>"`                |
+| threshold on, confidence nil                  | `"fallback"`   | `"Confidence not scored"`              |
+| threshold on, confidence below it             | `"fallback"`   | `"Below confidence threshold"`         |
+| otherwise                                     | `"classifier"` | the decision's reason                  |
+
+`<message>` is the first line of the exception's message, cut at 200 characters, so a provider's error body reaches the log.
+
+### Errors
+
+`Router.new` raises `DeclarationError` for any problem in the declaration and says which. `force` raises `UnknownMode`, a `KeyError`. A classifier that raised, or broke the contract (a `ContractError`), does not fail the turn: the route falls back and the exception is on `route.error`. To fail instead, raise from `on_error`; whatever the handler raises escapes `call`. An exception from an `instructions` block or template is a declaration bug and escapes `call` as well.
+
 ## Examples
 
-`examples/` holds three runnable programs that double as the integration
-tests: contextual routing through `instructions`, a tool mode followed by a
-clarification mode on one chat, and a custom classifier whose
-low-confidence decision falls back with a full trace.
+`examples/` holds three runnable programs that double as the integration tests: contextual routing through `instructions`, a tool mode followed by a clarification mode on one chat, and a custom classifier whose low-confidence decision falls back with a full trace.
 
 ```
 bundle exec ruby examples/contextual_routing.rb
