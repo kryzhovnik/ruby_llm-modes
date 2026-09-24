@@ -35,7 +35,9 @@ Requires `ruby_llm >= 2.0` and Ruby 3.2 or newer.
 
 A mode is a `RubyLLM::Agent` with a routing description. Subclass
 `RubyLLM::ModeAgent`, or extend `RubyLLM::Modes::Mode` into your own agent
-base class.
+base class. `ModeAgent` sits next to `RubyLLM::Agent` on purpose, as the
+one class an app subclasses; everything else the gem defines lives under
+`RubyLLM::Modes`.
 
 ```ruby
 class TutorAgent < RubyLLM::ModeAgent
