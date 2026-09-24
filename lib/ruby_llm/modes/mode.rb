@@ -12,7 +12,19 @@ module RubyLLM
     #
     # Neither value is inherited. A subclass declares its own description,
     # and its name is derived from its own class name unless overridden.
+    #
+    # A mode takes one turn of a chat that already has its own system
+    # prompt, so its +instructions+ default to <tt>append: true</tt> (added
+    # after the chat's prompt) and <tt>persist: false</tt> (kept out of a
+    # Rails record's history). Declare either option to override.
     module Mode
+      # Agent's +instructions+ with mode defaults: <tt>append: true</tt> and
+      # <tt>persist: false</tt>. Everything else, including the getter form
+      # and prompt locals, is Agent's.
+      def instructions(text = nil, append: true, persist: false, **options, &block)
+        super
+      end
+
       # Sets the routing description, or returns this class's own one.
       # Multi-line text is fine; surrounding whitespace is removed.
       def mode_description(text = nil)

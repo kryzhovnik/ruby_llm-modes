@@ -18,7 +18,8 @@ module RubyLLM
     #   end
     #
     #   route = ChatModeRouter.new(user:, card:).call(message, history:)
-    #   route.mode.new(chat:, persist_instructions: false, user:, card:)
+    #   agent = route.mode.new(chat:, user:, card:)
+    #   agent.complete
     #
     # Subclassing copies the declarations. +mode+ appends to the inherited
     # list; the other macros replace. Declarations are validated when a

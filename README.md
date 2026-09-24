@@ -12,8 +12,8 @@ applies the mode.
 
 ```ruby
 route = ChatModeRouter.new(user:, card:).call(message.content, history:)
-route.mode.new(chat:, persist_instructions: false, user:, card:)
-chat.complete
+agent = route.mode.new(chat:, user:, card:)
+agent.complete
 
 logger.info route.to_h
 # {"mode"=>"tutor", "level"=>"fallback", "reason"=>"Below confidence threshold",
@@ -45,14 +45,14 @@ class TutorAgent < RubyLLM::ModeAgent
     conversation going. A bare word or phrase is a request to explain it.
   TEXT
 
-  instructions "You are a patient English tutor.", append: true
+  instructions "You are a patient English tutor."
 end
 
 class ManageCardsAgent < RubyLLM::ModeAgent
   mode_description "Creates, edits, or deletes flashcards. Only when the learner asks for it."
   mode_name "cards"          # optional; default derived from the class name
 
-  instructions "Manage the learner's flashcards with the tools.", append: true
+  instructions "Manage the learner's flashcards with the tools."
   tools CreateCard, DeleteCard
   thinking effort: :high
 end
@@ -63,6 +63,14 @@ removed, namespaces kept, underscored: `TutorAgent` is `"tutor"`,
 `Chat::TutorAgent` is `"chat/tutor"`, `TutorModeAgent` is `"tutor_mode"`.
 Neither `mode_description` nor `mode_name` is inherited: every routable
 class declares its own description.
+
+A mode takes one turn of a chat that already has its own system prompt, so
+`instructions` in a mode defaults to `append: true` and `persist: false`:
+the mode's prompt is added after the chat's and, on a Rails chat record,
+kept out of the stored history. Declare `append: false` or `persist: true`
+to override. The defaults apply to explicit `instructions` declarations
+only; a conventional `instructions.txt.erb` template with no declaration
+keeps Agent's defaults, so declare `instructions` in a mode.
 
 ## The declaration
 
@@ -196,30 +204,32 @@ The router never touches the chat. Apply the mode with the agent's public
 constructor:
 
 ```ruby
-route.mode.new(chat:, persist_instructions: false, user:, card:)
-chat.complete
+agent = route.mode.new(chat:, user:, card:)
+agent.complete
 ```
+
+`Agent.new(chat:)` configures the chat you pass in and returns an agent
+wrapping it. Run the turn through the agent, not the chat: `agent.complete`
+is `chat.complete` inside the agent's `rescue_from` handlers, while
+`chat.complete` skips them.
 
 Agent's constructor **adds** configuration to an existing chat; it does
 not reset it. Tools, schema, and thinking are set only when the mode
-declares them. Instructions replace the system message unless declared
-with `append: true`. This has two consequences:
+declares them, and mode instructions append to the chat's system prompt
+(see [Modes](#modes)). So apply a mode to a chat whose per-turn
+configuration is fresh. A Rails record loaded for the turn is fresh. A
+long-lived in-memory chat must be restored to its base configuration
+before the next mode:
 
-1. Declare mode instructions with `append: true` when the chat carries a
-   base system prompt that must survive.
-2. Apply a mode to a chat whose per-turn configuration is fresh. A Rails
-   record loaded for the turn is fresh. A long-lived in-memory chat must
-   be restored to its base configuration before the next mode:
+```ruby
+chat.with_instructions(base_prompt)   # base stays, appended mode instructions go
+    .with_tools(nil)
+    .with_schema(nil)
+```
 
-   ```ruby
-   chat.with_instructions(base_prompt)   # base stays, appended mode instructions go
-       .with_tools(nil)
-       .with_schema(nil)
-   ```
-
-   Nothing can unset thinking once a mode enabled it, so every mode must
-   declare `thinking` explicitly, or the app sets a baseline
-   `with_thinking(...)` in the same reset.
+Nothing can unset thinking once a mode enabled it, so every mode must
+declare `thinking` explicitly, or the app sets a baseline
+`with_thinking(...)` in the same reset.
 
 `examples/tool_mode_to_clarification.rb` shows the reset on a real
 `RubyLLM::Chat`.

@@ -44,8 +44,14 @@ end
 - `mode_name` default: class name with the trailing `Agent` removed,
   namespaces kept, underscored. `TutorAgent` → `"tutor"`,
   `Chat::TutorAgent` → `"chat/tutor"`, `TutorModeAgent` → `"tutor_mode"`.
+- `instructions` in a mode defaults to `append: true, persist: false`
+  (`Mode#instructions` overrides Agent's defaults; the getter form and
+  prompt locals pass through). A mode's prompt follows the chat's own and
+  is never written to a Rails record's history. Explicit `append: false`
+  or `persist: true` overrides. The conventional `instructions.txt.erb`
+  fallback bypasses the override and keeps Agent's defaults.
 - A mode is applied to a chat by the app with Agent's public constructor:
-  `TutorAgent.new(chat:, persist_instructions: false, **inputs)`. See §8.
+  `agent = TutorAgent.new(chat:, **inputs); agent.complete`. See §8.
 
 ## 3. Router declaration
 
@@ -260,17 +266,22 @@ The router never touches the chat. The app applies the mode:
 
 ```ruby
 route = ChatModeRouter.new(user:, card:).call(message.content, history:)
-route.mode.new(chat:, persist_instructions: false, user:, card:)
-chat.complete
+agent = route.mode.new(chat:, user:, card:)
+agent.complete
 ```
+
+The turn runs through the agent so its `rescue_from` handlers apply;
+`chat.complete` would skip them.
 
 What Agent's constructor does to an existing chat (verified in
 `agent.rb`, `apply_configuration`): it **adds** configuration, it does not
 reset it. `with_tools` is called only when the mode declares tools,
 `with_schema` only when it declares a schema, `with_thinking` only when
 declared. Instructions replace the system message unless declared with
-`append: true`; with `persist_instructions: false` a Rails chat record keeps
-them in memory only.
+`append: true`, and are written to a Rails chat record's history unless
+`persist: false`; `Mode#instructions` makes both the default for modes
+(§2), so neither `append: true` nor `persist_instructions: false` appears
+at the call site.
 
 Verified on a real `RubyLLM::Chat` (rc4, no provider calls): after two
 modes with `append: true` the chat holds the base prompt **and both** mode
@@ -296,8 +307,6 @@ Consequences the app must handle:
   and every mode must declare `thinking` explicitly (it replaces; nothing
   can unset it), or the app sets a baseline `with_thinking(...)` in the
   same reset.
-- Declare mode instructions with `append: true` when the chat carries a
-  base system prompt that must survive.
 
 If real integrations need more than this reset, this section is the first
 thing to revisit (a `Route#apply` with reset semantics), not the router.

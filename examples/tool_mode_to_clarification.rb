@@ -34,7 +34,7 @@ module Examples
     class ManageCardsAgent < RubyLLM::ModeAgent
       mode_description "Creates, edits, or deletes flashcards."
 
-      instructions MANAGE_CARDS_INSTRUCTIONS, append: true
+      instructions MANAGE_CARDS_INSTRUCTIONS
       tools CreateCard
       thinking effort: :high
       schema do
@@ -45,7 +45,7 @@ module Examples
     class ClarifyAgent < RubyLLM::ModeAgent
       mode_description "Asks one short question when the request is ambiguous."
 
-      instructions CLARIFY_INSTRUCTIONS, append: true
+      instructions CLARIFY_INSTRUCTIONS
       thinking effort: :low
     end
 
@@ -59,14 +59,12 @@ module Examples
       chat.with_instructions(BASE_INSTRUCTIONS)
 
       chat.add_message(role: :user, content: "add reluctant to my cards")
-      ManageCardsAgent.new(chat:, persist_instructions: false)
-      chat.complete
+      ManageCardsAgent.new(chat:).complete
       after_manage_cards = snapshot(chat)
 
       reset(chat)
       chat.add_message(role: :user, content: "the other one")
-      ClarifyAgent.new(chat:, persist_instructions: false)
-      chat.complete
+      ClarifyAgent.new(chat:).complete
       after_clarify = snapshot(chat)
 
       { after_manage_cards:, after_clarify: }
