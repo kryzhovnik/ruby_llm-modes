@@ -119,8 +119,14 @@ description, the same class registered twice, or an unavailable backend.
 router = ChatModeRouter.new(user: current_user, card: open_card)
 router.modes                    # registrations available for this call
 route = router.call(message, history: chat.messages)
-route = router.explicit("showtime")   # bypass the classifier; raises UnknownMode if unavailable
+route = router.force("showtime")      # the app chose the mode; raises UnknownMode if unavailable
 ```
+
+`call` lets the classifier decide. `force` is for the turns the app has
+already decided, such as a button or a command that starts a mode by
+name: no classifier runs, `if:` still applies, and the result is a
+`Route` like any other, so the code that applies and logs a route stays
+the same.
 
 `history:` entries are `{ role:, content: }` hashes, `RubyLLM::Message`
 objects, Rails message records responding to `to_llm`, or plain strings.
@@ -137,7 +143,7 @@ The route is decided by the first rule that applies:
 
 | Situation                                        | decided_by     | reason                         |
 |--------------------------------------------------|----------------|--------------------------------|
-| `explicit(name)`                                 | `"caller"`     | `"Mode requested by caller"`   |
+| `force(name)`                                    | `"caller"`     | `"Mode requested by caller"`   |
 | only the fallback is available                   | `"fallback"`   | `"No other mode available"`    |
 | classifier raised, or violated the contract      | `"fallback"`   | `"Classifier failed: <class>"` |
 | decision names an unknown or unavailable mode    | `"fallback"`   | `"Unknown mode <name>"`        |

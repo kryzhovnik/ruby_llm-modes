@@ -8,7 +8,7 @@ module RubyLLM
     # A router declaration is invalid. Raised by Router.new.
     class DeclarationError < Error; end
 
-    # Router#explicit was asked for a name that is not registered or not
+    # Router#force was asked for a name that is not registered or not
     # available for this call.
     class UnknownMode < KeyError; end
 

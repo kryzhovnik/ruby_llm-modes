@@ -114,7 +114,7 @@ declares its own (`ApplicationModeAgent` has none and is not routable).
 router = ChatModeRouter.new(user:, card:)
 router.modes                 # available registrations for this call, in declaration order
 router.call(message, history: [], classifier: nil)   # → Route
-router.explicit("showtime")                          # → Route
+router.force("showtime")                             # → Route
 ```
 
 Validation happens in `new`, not at class definition (there is no reliable
@@ -133,7 +133,7 @@ Validation happens in `new`, not at class definition (there is no reliable
 Availability invariants:
 
 - The fallback is always available.
-- `explicit(name)` respects `if:`; an unavailable or unknown name raises
+- `force(name)` respects `if:`; an unavailable or unknown name raises
   `RubyLLM::Modes::UnknownMode` (a `KeyError`).
 - If the fallback is the only available mode, the classifier is not called;
   the route is `decided_by: "fallback"`, `reason: "No other mode available"`.
@@ -183,7 +183,7 @@ only if the class itself responds to `call`; there is no implicit `new`.
 
 Tracing (`Route#classifier`): a built-in backend records what actually ran,
 `{ with: "chat", model: "..." }`; a custom object records `{ with:
-"custom", model: nil }`; when no backend was called (explicit,
+"custom", model: nil }`; when no backend was called (forced,
 fallback-only shortcut) it is nil. A `classifier:` override follows the
 same rule for the object actually used, never the declared one. A shadow
 classifier that runs two backends logs the comparison itself; `Decision`
@@ -232,7 +232,7 @@ Text sources, lightest to fullest:
 Route = Data.define(:mode, :mode_name, :decided_by, :reason, :decision,
                     :duration_ms, :classifier, :error)
 # mode: class; mode_name: registration name; decided_by: "caller" | "classifier" | "fallback"
-# decision: Decision or nil (explicit); classifier: { with:, model: } or nil
+# decision: Decision or nil (forced); classifier: { with:, model: } or nil
 # error: Exception or nil, never serialised
 ```
 
@@ -240,7 +240,7 @@ Checks run in this order; the first that fails names the reason.
 
 | # | Situation                                        | decided_by     | reason                        | decision |
 |---|--------------------------------------------------|----------------|-------------------------------|----------|
-| 0 | `explicit(name)`                                 | `"caller"`     | `"Mode requested by caller"`  | nil      |
+| 0 | `force(name)`                                    | `"caller"`     | `"Mode requested by caller"`  | nil      |
 | 1 | only the fallback is available                   | `"fallback"`   | `"No other mode available"`   | nil      |
 | 2 | classifier raised, or violated the contract      | `"fallback"`   | `"Classifier failed: <class>"`| nil, `error` set |
 | 3 | decision names an unknown or unavailable mode    | `"fallback"`   | `"Unknown mode <name>"`       | kept     |
@@ -332,7 +332,7 @@ fake `:chat` backend:
    `decision.confidence == 0.42`, and `to_h` carries both.
 
 Plus unit tests for every row of the §7 table, every `DeclarationError`,
-the name derivation, `explicit` availability, and the fallback-only
+the name derivation, `force` availability, and the fallback-only
 shortcut.
 
 ## 10. Non-goals

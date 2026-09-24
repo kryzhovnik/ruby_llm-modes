@@ -25,10 +25,10 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
     router.new(showtime_enabled:).call(message, history:, classifier:)
   end
 
-  # Row 0: explicit
+  # Row 0: force
 
-  def test_explicit_route
-    route = ThresholdRouter.new(showtime_enabled: true).explicit(:showtime)
+  def test_forced_route
+    route = ThresholdRouter.new(showtime_enabled: true).force(:showtime)
     assert_equal ShowtimeAgent, route.mode
     assert_equal "showtime", route.mode_name
     assert_equal "caller", route.decided_by
@@ -38,16 +38,16 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
     assert_nil route.duration_ms
   end
 
-  def test_explicit_respects_availability
+  def test_force_respects_availability
     error = assert_raises(RubyLLM::Modes::UnknownMode) do
-      ThresholdRouter.new(showtime_enabled: false).explicit("showtime")
+      ThresholdRouter.new(showtime_enabled: false).force("showtime")
     end
     assert_kind_of KeyError, error
     assert_equal "showtime", error.key
   end
 
-  def test_explicit_unknown_name
-    assert_raises(RubyLLM::Modes::UnknownMode) { ThresholdRouter.new(showtime_enabled: true).explicit("nope") }
+  def test_force_unknown_name
+    assert_raises(RubyLLM::Modes::UnknownMode) { ThresholdRouter.new(showtime_enabled: true).force("nope") }
   end
 
   # Row 1: only the fallback is available

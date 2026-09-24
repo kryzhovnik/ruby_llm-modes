@@ -259,9 +259,10 @@ module RubyLLM
         resolve(decision, available, duration_ms:, classifier: trace)
       end
 
-      # Routes to the mode registered as +name+ without a classifier. Raises
-      # UnknownMode when the name is not registered or not available now.
-      def explicit(name)
+      # Routes to the mode registered as +name+ because the caller chose it;
+      # no classifier runs. Respects +if:+ and raises UnknownMode when the
+      # name is not registered or not available now.
+      def force(name)
         registration = modes.find { |candidate| candidate.name == name.to_s }
         raise UnknownMode.new("Unknown mode #{name}", receiver: self, key: name) unless registration
 
