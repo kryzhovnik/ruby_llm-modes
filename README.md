@@ -99,7 +99,10 @@ end
 - `inputs` are required keywords of `new` (`card: nil` counts as passed)
   and become methods inside `if:`, `guidance`, and `prompt` blocks.
 - `mode` registers an agent class once. Without an inline description the
-  class must have a `mode_description`.
+  class must have a `mode_description`. The router's declaration wins over
+  the class's: an inline description overrides `mode_description`, and
+  `as:` overrides `mode_name`, which in turn overrides the name derived
+  from the class.
 - `fallback` is required. It is the mode used whenever the classifier is
   ignored: it raised, named an unknown or unavailable mode, or scored below
   `below_confidence`. Pass no threshold to accept any confidence.

@@ -87,7 +87,9 @@ Macros:
   (v0.1: one registration per class, so `fallback klass` is unambiguous).
   Without `description` it must respond to `mode_description`. `as:` sets
   the registration name; default `klass.mode_name` if it responds to it,
-  else the derivation in §2. `if:` is a lambda run on the router instance.
+  else the derivation in §2. Precedence is the same for both: the router's
+  inline value wins over the class's declaration, which wins over the
+  derived default. `if:` is a lambda run on the router instance.
 - `guidance text = nil, &block` — cross-mode routing text. Both backends
   receive the same resolved string.
 - `prompt name = nil, &block` — replaces the chat backend's built-in system
