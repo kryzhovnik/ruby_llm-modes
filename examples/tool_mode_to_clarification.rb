@@ -3,7 +3,7 @@
 # Acceptance example 2: a tool mode followed by a clarification mode on
 # one RubyLLM::Chat object reused for both turns.
 #
-# This is the secondary case of SPEC.md §8. A Rails app loads the chat
+# This is the secondary case of "Reusing one chat object" in the README. A Rails app loads the chat
 # record per turn and needs no reset; a script or a job that runs two
 # modes on one chat object does. The chat starts with base instructions.
 # ManageCardsAgent adds tools, a schema, and high-effort thinking. Before
@@ -73,7 +73,7 @@ module Examples
       { after_manage_cards:, after_clarify: }
     end
 
-    # The reset of SPEC.md §8 for a chat object reused across turns.
+    # The reset from the README for a chat object reused across turns.
     def self.reset(chat)
       chat.with_instructions(BASE_INSTRUCTIONS)
           .with_tools(nil)

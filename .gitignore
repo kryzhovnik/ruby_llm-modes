@@ -5,3 +5,6 @@
 /tmp/
 *.gem
 .DS_Store
+
+# Internal design notes, not published
+/SPEC.md

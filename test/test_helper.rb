@@ -41,7 +41,7 @@ end
 # needs an inline description.
 class PlainAgent < RubyLLM::Agent; end
 
-# A classifier that satisfies the §5 contract and records every call.
+# A classifier that satisfies the classifier contract and records every call.
 class FakeClassifier
   attr_reader :calls
 
