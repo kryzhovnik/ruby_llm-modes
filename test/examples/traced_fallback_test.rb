@@ -11,7 +11,7 @@ class Examples::TracedFallbackTest < Minitest::Test
   end
 
   def test_falls_back_to_the_tutor_below_the_threshold
-    assert_equal Example::TutorAgent, @route.mode
+    assert_equal Example::TutorAgent, @route.mode_class
     assert_equal "tutor", @route.mode_name
     assert_equal "fallback", @route.decided_by
     assert_equal "Below confidence threshold", @route.reason

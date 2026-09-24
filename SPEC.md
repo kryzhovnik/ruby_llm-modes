@@ -229,11 +229,13 @@ Text sources, lightest to fullest:
 ## 7. Route
 
 ```ruby
-Route = Data.define(:mode, :mode_name, :decided_by, :reason, :decision,
-                    :duration_ms, :classifier, :error)
-# mode: class; mode_name: registration name; decided_by: "caller" | "classifier" | "fallback"
+Route = Data.define(:mode_class, :mode_name, :decided_by, :reason, :decision,
+                    :duration_ms, :classifier, :error, :inputs)
+# mode_class: class; mode_name: registration name; decided_by: "caller" | "classifier" | "fallback"
 # decision: Decision or nil (forced); classifier: { with:, model: } or nil
-# error: Exception or nil, never serialised
+# error: Exception or nil, never serialised; inputs: the router's inputs, never serialised
+
+route.mode(chat:, **options)   # mode_class.new(chat:, inputs:, **options); chat: nil builds a fresh chat
 ```
 
 Checks run in this order; the first that fails names the reason.
@@ -252,7 +254,7 @@ Threshold off (`below_confidence` nil): rows 4 and 5 are skipped and a
 known, available mode is accepted whatever its confidence.
 
 `duration_ms` wraps the classifier call and is present on every classifier-run
-route. `to_h` gives string keys and drops `mode` (class) and `error`:
+route. `to_h` gives string keys and drops `mode_class`, `error`, and `inputs`:
 
 ```ruby
 { "mode_name" => "tutor", "decided_by" => "fallback", "reason" => "Below confidence threshold",
@@ -262,16 +264,19 @@ route. `to_h` gives string keys and drops `mode` (class) and `error`:
 
 ## 8. Applying a mode (app responsibility)
 
-The router never touches the chat. The app applies the mode:
+The router never touches the chat. The app applies the mode through the
+route:
 
 ```ruby
 route = ChatModeRouter.new(user:, card:).call(message.content, history:)
-agent = route.mode.new(chat:, user:, card:)
-agent.complete
+route.mode(chat:).complete
 ```
 
-The turn runs through the agent so its `rescue_from` handlers apply;
-`chat.complete` would skip them.
+`Route#mode(chat:, **options)` is `mode_class.new(chat:, inputs:, **options)`
+with the router's inputs as Agent's own `inputs:` keyword; Agent keeps the
+names it declared and ignores the rest, so router and agent inputs need not
+match. With no `chat:` Agent builds a fresh chat. The turn runs through the
+agent so its `rescue_from` handlers apply; `chat.complete` would skip them.
 
 What Agent's constructor does to an existing chat (verified in
 `agent.rb`, `apply_configuration`): it **adds** configuration, it does not
@@ -327,7 +332,7 @@ fake `:chat` backend:
    Assert the system messages are exactly base + Clarify's, tools empty,
    schema nil, thinking `{ effort: :low }`.
 3. **Custom classifier with a traced fallback.** A classifier returning
-   `showtime` at 0.42 under a 0.6 threshold; assert `route.mode ==
+   `showtime` at 0.42 under a 0.6 threshold; assert `route.mode_class ==
    TutorAgent`, `decided_by == "fallback"`, `decision.mode_name == "showtime"`,
    `decision.confidence == 0.42`, and `to_h` carries both.
 

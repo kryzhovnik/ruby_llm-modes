@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `RubyLLM::ModeAgent`, an Agent with Mode extended.
 - `Mode#instructions` defaults to `append: true, persist: false`: a mode's
   prompt follows the chat's own and stays out of a Rails record's history,
-  so the call site is `route.mode.new(chat:, **inputs).complete`.
+  so the call site is `route.mode(chat:).complete`.
 - `RubyLLM::Modes::Router` with the declaration DSL (`inputs`, `mode`,
   `guidance`, `prompt`, `history`, `fallback`, `classify`, `on_error`),
   inheritance that copies declarations, validation in `new`, availability
@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Decision` and `Route` value objects; `Route#decided_by` (`"caller"`,
   `"classifier"`, `"fallback"`), `Route#duration_ms`, and `to_h` on both with
   the field names as string keys, for logs.
+- `Route#mode(chat:)` builds the mode's agent on the chat with the router's
+  inputs as the agent's `inputs:`; `Route#mode_class` is the class.
 - The `:chat` classifier backend with the built-in routing frame, the
   selection schema, `prompt` overrides (template name or block), and
   `chat_factory:`.

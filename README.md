@@ -12,8 +12,7 @@ applies the mode.
 
 ```ruby
 route = ChatModeRouter.new(user:, card:).call(message.content, history:)
-agent = route.mode.new(chat:, user:, card:)
-agent.complete
+route.mode(chat:).complete
 
 logger.info route.to_h
 # {"mode_name"=>"tutor", "decided_by"=>"fallback", "reason"=>"Below confidence threshold",
@@ -133,11 +132,13 @@ objects, Rails message records responding to `to_llm`, or plain strings.
 The router normalises them before any backend sees them and keeps only the
 last `history n` entries.
 
-A `Route` has `mode` (the class), `mode_name`, `decided_by` (`"caller"`,
+A `Route` has `mode_class`, `mode_name`, `decided_by` (`"caller"`,
 `"classifier"`, or `"fallback"`), `reason`, the classifier's `decision`,
-`duration_ms`, a `classifier` trace (`{ with:, model: }`), and `error`.
-`to_h` is the same fields with string keys, for logs, minus the class and
-the error; `Decision#to_h` follows the same rule.
+`duration_ms`, a `classifier` trace (`{ with:, model: }`), `error`, and the
+router's `inputs`. `route.mode(chat:)` is the mode as an agent on that
+chat (see [Applying a mode](#applying-a-mode-and-the-reset-rule)). `to_h`
+is the same fields with string keys, for logs, minus the class, the error,
+and the inputs; `Decision#to_h` follows the same rule.
 
 The route is decided by the first rule that applies:
 
@@ -207,17 +208,21 @@ unless `judge:` is given. `prompt` cannot be declared with this backend.
 
 ## Applying a mode and the reset rule
 
-The router never touches the chat. Apply the mode with the agent's public
-constructor:
+The router never touches the chat. `route.mode(chat:)` does: it is the
+mode's `Agent.new(chat:, inputs: route.inputs)`, so it configures the chat
+you pass in and returns the agent wrapping it.
 
 ```ruby
-agent = route.mode.new(chat:, user:, card:)
-agent.complete
+route.mode(chat:).complete
 ```
 
-`Agent.new(chat:)` configures the chat you pass in and returns an agent
-wrapping it. Run the turn through the agent, not the chat: `agent.complete`
-is `chat.complete` inside the agent's `rescue_from` handlers, while
+The router's inputs are handed to the agent as its `inputs:`. The agent
+takes the names it declared with `inputs` and ignores the rest, so a mode
+declares only what it uses. Extra keywords go to `Agent.new` as given:
+`route.mode(chat:, session:)`.
+
+Run the turn through the agent, not the chat: `agent.complete` is
+`chat.complete` inside the agent's `rescue_from` handlers, while
 `chat.complete` skips them.
 
 Agent's constructor **adds** configuration to an existing chat; it does
@@ -233,6 +238,9 @@ chat.with_instructions(base_prompt)   # base stays, appended mode instructions g
     .with_tools(nil)
     .with_schema(nil)
 ```
+
+Or skip the shared chat: `route.mode` with no `chat:` builds a fresh one
+through Agent, and the app copies the messages it wants to keep.
 
 Nothing can unset thinking once a mode enabled it, so every mode must
 declare `thinking` explicitly, or the app sets a baseline

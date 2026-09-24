@@ -90,7 +90,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
     assert_equal({ model: "jev-latest" }, call[:options])
 
     assert_equal "classifier", route.decided_by
-    assert_equal ManageCardsAgent, route.mode
+    assert_equal ManageCardsAgent, route.mode_class
     assert_nil route.reason
     assert_equal 0.8, route.decision.confidence
     assert_equal({ "tutor" => 0.1, "card" => 0.9 }, route.decision.probabilities)
@@ -100,7 +100,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
   def test_declared_judge_option_reaches_the_backend
     route = CardRouter.new(card: nil).call("add it")
     assert_equal "classifier", route.decided_by
-    assert_equal ManageCardsAgent, route.mode
+    assert_equal ManageCardsAgent, route.mode_class
     assert_equal({ "mode_name" => "card", "confidence" => 0.8, "reason" => nil, "probabilities" => { "tutor" => 0.1, "card" => 0.9 } }, route.decision.to_h)
   end
 
@@ -180,7 +180,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
 
     router_class = Class.new(CardRouter) { classify with: :judge, model: "jev-latest" }
     route = router_class.new(card: nil).call("add it")
-    assert_equal ManageCardsAgent, route.mode
+    assert_equal ManageCardsAgent, route.mode_class
     assert_equal({ model: "jev-latest" }, judge.last_call[:options])
   ensure
     RubyLLM.singleton_class.remove_method(:judge)
