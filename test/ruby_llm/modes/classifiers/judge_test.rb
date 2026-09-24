@@ -145,7 +145,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
 
     judge.define_singleton_method(:call) { |*, **| raise IOError, "down" }
     route = CardRouter.new(card: nil).call("add it", classifier: classifier)
-    assert_equal "Classifier failed: IOError", route.reason
+    assert_equal "Classifier failed: IOError: down", route.reason
     assert_equal({ with: "judge", model: "jev-latest" }, route.classifier)
   end
 

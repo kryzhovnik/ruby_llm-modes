@@ -91,15 +91,36 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
     route = route(FakeClassifier.new { raise IOError, "network" })
     assert_equal TutorAgent, route.mode_class
     assert_equal "fallback", route.decided_by
-    assert_equal "Classifier failed: IOError", route.reason
+    assert_equal "Classifier failed: IOError: network", route.reason
     assert_nil route.decision
     assert_instance_of IOError, route.error
     assert_equal({ with: "custom", model: nil }, route.classifier)
   end
 
+  def test_reason_is_the_class_alone_when_the_message_is_the_default
+    assert_equal "Classifier failed: IOError", route(FakeClassifier.new { raise IOError }).reason
+    assert_equal "Classifier failed: IOError", route(FakeClassifier.new { raise IOError, "" }).reason
+  end
+
+  def test_reason_keeps_the_first_line_of_the_message_only
+    route = route(FakeClassifier.new { raise IOError, "  first line  \nsecond line" })
+    assert_equal "Classifier failed: IOError: first line", route.reason
+  end
+
+  def test_reason_carries_the_provider_message
+    response = Struct.new(:status, :body).new(400, '{"detail":{"error_type":"max_tokens_exceeded"}}')
+    route = route(FakeClassifier.new { raise RubyLLM::BadRequestError.new(response:) })
+    assert_equal 'Classifier failed: RubyLLM::BadRequestError: {"detail":{"error_type":"max_tokens_exceeded"}}', route.reason
+  end
+
+  def test_reason_cuts_a_long_message
+    route = route(FakeClassifier.new { raise IOError, "x" * 500 })
+    assert_equal "Classifier failed: IOError: #{"x" * 200}", route.reason
+  end
+
   def test_classifier_returned_a_non_decision
     route = route(FakeClassifier.new { { mode: "card" } })
-    assert_equal "Classifier failed: RubyLLM::Modes::ContractError", route.reason
+    assert_equal "Classifier failed: RubyLLM::Modes::ContractError: classifier returned Hash, expected a Decision", route.reason
     assert_instance_of ContractError, route.error
   end
 
@@ -353,5 +374,96 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
     router_class = Class.new(ThresholdRouter) { classify_with :chat, model: "gemini-3.5-flash-lite" }
     route = route(FakeClassifier.deciding(mode_name: "card", confidence: 0.9), router: router_class)
     assert_equal({ with: "custom", model: nil }, route.classifier)
+  end
+end
+
+# The caps on what reaches the classifier.
+class RubyLLM::Modes::RouterTruncationTest < Minitest::Test
+  Router = RubyLLM::Modes::Router
+  Truncation = RubyLLM::Modes::Truncation
+
+  class CappedRouter < Router
+    mode TutorAgent
+    mode ManageCardsAgent, as: :card
+    fallback TutorAgent
+    truncate message: 100, history_entry: 20
+    classify_with FakeClassifier.deciding(mode_name: "card", confidence: 0.9)
+  end
+
+  class UncappedRouter < CappedRouter
+    truncate message: nil, history_entry: nil
+  end
+
+  def test_defaults
+    assert_equal 30_000, Router::MESSAGE_LIMIT
+    assert_equal 2_000, Router::HISTORY_ENTRY_LIMIT
+    router_class = Class.new(Router)
+    assert_equal 30_000, router_class.message_limit
+    assert_equal 2_000, router_class.history_entry_limit
+  end
+
+  def test_truncate_changes_only_the_caps_given
+    router_class = Class.new(Router) { truncate history_entry: 50 }
+    assert_equal 30_000, router_class.message_limit
+    assert_equal 50, router_class.history_entry_limit
+  end
+
+  def test_truncate_is_inherited_and_replaced
+    assert_equal 100, CappedRouter.message_limit
+    assert_equal 20, CappedRouter.history_entry_limit
+    assert_nil UncappedRouter.message_limit
+    assert_nil UncappedRouter.history_entry_limit
+  end
+
+  def test_truncate_rejects_anything_but_a_positive_integer_or_nil
+    [ 0, -1, "100", 1.5 ].each do |value|
+      error = assert_raises(ArgumentError) { Class.new(Router) { truncate message: value } }
+      assert_match(/truncate message: takes a positive Integer or nil/, error.message)
+    end
+    assert_raises(ArgumentError) { Class.new(Router) { truncate history_entry: 0 } }
+  end
+
+  def test_a_message_within_the_cap_is_passed_as_given
+    classifier = FakeClassifier.deciding(mode_name: "card")
+    CappedRouter.new.call("a" * 100, classifier: classifier)
+    assert_equal "a" * 100, classifier.last_call[:message]
+  end
+
+  def test_a_long_message_keeps_its_head_and_tail
+    classifier = FakeClassifier.deciding(mode_name: "card")
+    message = "make cards from this article: " + ("x" * 500) + " and only the nouns"
+    CappedRouter.new.call(message, classifier: classifier)
+
+    sent = classifier.last_call[:message]
+    assert_equal Truncation.head_and_tail(message, 100), sent
+    assert sent.start_with?("make cards from this article: ")
+    assert sent.end_with?(" and only the nouns")
+    assert_includes sent, "\n[... #{message.size - 100} characters omitted ...]\n"
+  end
+
+  def test_each_history_entry_keeps_its_head
+    classifier = FakeClassifier.deciding(mode_name: "card")
+    history = [ { role: :user, content: "short" }, { role: :assistant, content: "y" * 60 }, "z" * 30 ]
+    CappedRouter.new.call("hi", history: history, classifier: classifier)
+
+    assert_equal [
+      { role: :user, content: "short" },
+      { role: :assistant, content: ("y" * 20) + "\n[... 40 characters omitted ...]\n" },
+      { role: nil, content: ("z" * 20) + "\n[... 10 characters omitted ...]\n" }
+    ], classifier.last_call[:history]
+  end
+
+  def test_nil_disables_a_cap
+    classifier = FakeClassifier.deciding(mode_name: "card")
+    UncappedRouter.new.call("m" * 500, history: [ "h" * 500 ], classifier: classifier)
+    assert_equal "m" * 500, classifier.last_call[:message]
+    assert_equal "h" * 500, classifier.last_call[:history].first[:content]
+  end
+
+  def test_history_last_applies_before_the_entry_cap
+    router_class = Class.new(CappedRouter) { history last: 1 }
+    classifier = FakeClassifier.deciding(mode_name: "card")
+    router_class.new.call("hi", history: [ "first", "second " + ("s" * 30) ], classifier: classifier)
+    assert_equal [ { role: nil, content: "second " + ("s" * 13) + "\n[... 17 characters omitted ...]\n" } ], classifier.last_call[:history]
   end
 end

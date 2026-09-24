@@ -132,7 +132,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
 
     factory.define_singleton_method(:call) { |model:| raise IOError, "down" }
     route = CardRouter.new(card: nil).call("add it", classifier: classifier)
-    assert_equal "Classifier failed: IOError", route.reason
+    assert_equal "Classifier failed: IOError: down", route.reason
     assert_equal({ with: "chat", model: "gemini-3.5-flash-lite" }, route.classifier)
   end
 

@@ -92,6 +92,7 @@ class ChatModeRouter < RubyLLM::Modes::Router
   end
 
   history last: 6                           # optional; default: all given
+  truncate message: 30_000, history_entry: 2_000   # optional; these are the defaults
   fallback TutorAgent, below_confidence: 0.6
   classify_with :chat, model: "gemini-3.5-flash-lite"
   on_error { |error| Rails.error.report(error, handled: true) }   # optional
@@ -113,6 +114,10 @@ end
   a Proc runs on the router, and the inputs are locals too). Inside a
   block, `prompt("name", **locals)` renders a template from the same
   directory. Both backends receive the same resolved string.
+- `truncate` caps, in characters, what reaches the classifier: the routed
+  `message:` keeps its first and last half, each `history_entry:` keeps its
+  head, and a marker names how many characters were cut. Pass only the caps
+  to change; `nil` disables one. See [Input size](#input-size).
 - `fallback` is required. It is the mode used whenever the classifier is
   ignored: it raised, named an unknown or unavailable mode, or scored below
   `below_confidence`. Pass no threshold to accept any confidence.
@@ -150,6 +155,20 @@ keeps the last `n` entries as given, whatever their roles; `history :all`,
 the default, keeps every entry, and a subclass can declare it to undo an
 inherited limit.
 
+### Input size
+
+Every backend has an input limit, and one oversized entry would cost the
+whole turn its routing: Jev answers a request over about 170k characters
+with a 400 (`max_tokens_exceeded`). So the router cuts what it sends,
+whatever the backend, before any classifier sees it. By default the
+routed message keeps its first and last 15,000 characters (the intent of
+a long paste is at one end or the other, never in the middle) and each
+history entry keeps its first 2,000; a marker between the kept parts says
+how many characters were omitted. `truncate message:, history_entry:`
+changes the caps, and `nil` disables one. The number of entries is still
+`history last: n`, so keep `entries × history_entry + message` under the
+backend's limit.
+
 A `Route` has `mode_class`, `mode_name`, `decided_by` (`"caller"`,
 `"classifier"`, or `"fallback"`), `reason`, the classifier's `decision`,
 `duration_ms`, a `classifier` trace (`{ with:, model: }`), `error`, and the
@@ -164,11 +183,16 @@ The route is decided by the first rule that applies:
 |--------------------------------------------------|----------------|--------------------------------|
 | `force(name)`                                    | `"caller"`     | `"Mode requested by caller"`   |
 | only the fallback is available                   | `"fallback"`   | `"No other mode available"`    |
-| classifier raised, or violated the contract      | `"fallback"`   | `"Classifier failed: <class>"` |
+| classifier raised, or violated the contract      | `"fallback"`   | `"Classifier failed: <class>: <message>"` |
 | decision names an unknown or unavailable mode    | `"fallback"`   | `"Unknown mode <name>"`        |
 | threshold on, confidence nil                     | `"fallback"`   | `"Confidence not scored"`      |
 | threshold on, confidence below it                | `"fallback"`   | `"Below confidence threshold"` |
 | otherwise                                        | `"classifier"` | the decision's reason          |
+
+The message in `Classifier failed` is the first line of the exception's
+message, cut at 200 characters, and left out when it is only the class
+name: a Jev 400 reads `Classifier failed: RubyLLM::BadRequestError:
+{"detail":{"error_type":"max_tokens_exceeded"}}`.
 
 Every mode a route returns is available for that call, and the classifier
 is not called when the fallback is the only available mode.

@@ -38,4 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   distribution, `provider:` and `judge:` options. A RubyLLM release without
   `RubyLLM.judge` rejects the backend at `new` unless `judge:` is given.
 - A classifier that responds to `trace` is traced by its own answer.
+- `truncate message:, history_entry:` caps, in characters, what reaches any
+  classifier: the message keeps its head and tail, each history entry its
+  head, with a marker for the cut. Defaults 30,000 and 2,000; `nil`
+  disables a cap. Jev rejects a request over about 170k characters.
+- The `Classifier failed` reason carries the first line of the exception's
+  message after the class, so a provider's error body reaches the logged
+  route.
 - Three acceptance examples under `examples/`, run as integration tests.

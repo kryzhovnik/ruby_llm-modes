@@ -13,6 +13,7 @@ module RubyLLM
     #
     #     instructions { "The learner has a flashcard open." if card }
     #     history last: 6
+    #     truncate message: 30_000, history_entry: 2_000
     #     fallback TutorAgent, below_confidence: 0.6
     #     classify_with :chat, model: "gemini-3.5-flash-lite"
     #   end
@@ -27,6 +28,16 @@ module RubyLLM
       BACKENDS = %i[chat judge].freeze
       private_constant :BACKENDS
 
+      # Default character caps on what reaches the classifier: the routed
+      # message keeps its head and tail, each history entry its head.
+      # Well under the smallest backend limit known (Jev: about 170k
+      # characters per request) with a history of a few dozen entries.
+      MESSAGE_LIMIT = 30_000
+      HISTORY_ENTRY_LIMIT = 2_000
+
+      # How much of a provider's message the fallback reason keeps.
+      REASON_LIMIT = 200
+
       class << self
         def inherited(subclass) # :nodoc:
           super
@@ -34,6 +45,8 @@ module RubyLLM
           subclass.instance_variable_set(:@input_names, input_names.dup)
           subclass.instance_variable_set(:@instructions_source, @instructions_source)
           subclass.instance_variable_set(:@history_limit, @history_limit)
+          subclass.instance_variable_set(:@message_limit, message_limit)
+          subclass.instance_variable_set(:@history_entry_limit, history_entry_limit)
           subclass.instance_variable_set(:@fallback_class, @fallback_class)
           subclass.instance_variable_set(:@below_confidence, @below_confidence)
           subclass.instance_variable_set(:@classifier_spec, @classifier_spec)
@@ -106,6 +119,20 @@ module RubyLLM
           @history_limit = last
         end
 
+        # Character caps on what reaches the classifier, whatever the
+        # backend. The routed +message:+ keeps its first and last half
+        # (the intent of a long paste is at one end); each +history_entry:+
+        # keeps its head. A marker names how many characters were cut.
+        # Defaults: MESSAGE_LIMIT and HISTORY_ENTRY_LIMIT; nil disables a
+        # cap. Pass only the caps to change.
+        #
+        #   truncate message: 30_000, history_entry: 2_000
+        #   truncate history_entry: nil
+        def truncate(message: message_limit, history_entry: history_entry_limit)
+          @message_limit = limit_value(:message, message)
+          @history_entry_limit = limit_value(:history_entry, history_entry)
+        end
+
         # The mode used when the classifier is ignored. +below_confidence:+
         # sets the threshold under which a decision is ignored; nil disables it.
         def fallback(klass, below_confidence: nil)
@@ -130,6 +157,8 @@ module RubyLLM
         def registrations = @registrations ||= []
         def input_names = @input_names ||= []
         def history_limit = @history_limit
+        def message_limit = defined?(@message_limit) ? @message_limit : MESSAGE_LIMIT
+        def history_entry_limit = defined?(@history_entry_limit) ? @history_entry_limit : HISTORY_ENTRY_LIMIT
         def fallback_class = @fallback_class
         def below_confidence = @below_confidence
         def classifier_spec = @classifier_spec
@@ -149,6 +178,12 @@ module RubyLLM
         end
 
         private
+
+        def limit_value(name, value)
+          return value if value.nil? || (value.is_a?(Integer) && value.positive?)
+
+          raise ArgumentError, "truncate #{name}: takes a positive Integer or nil, got #{value.inspect}"
+        end
 
         def registration_name_for(klass)
           klass.respond_to?(:mode_name) ? klass.mode_name : Mode.derive_name(klass)
@@ -255,13 +290,16 @@ module RubyLLM
       # Routes +message+. +history:+ entries are <tt>{ role:, content: }</tt>
       # hashes, RubyLLM::Message objects, or strings. +classifier:+ replaces
       # the declared backend for this call. Returns a Route.
+      #
+      # The message and the history entries are cut to the declared
+      # +truncate+ caps first.
       def call(message, history: [], classifier: nil)
         available = modes
         return fallback_route("No other mode available", duration_ms: 0) if available.size == 1
 
         backend = classifier || self.classifier
         request = {
-          message: message,
+          message: truncate_message(message),
           history: normalize_history(history),
           modes: available,
           instructions: resolved_instructions,
@@ -273,7 +311,7 @@ module RubyLLM
         duration_ms = monotonic_ms - started
         trace = trace_for(backend)
 
-        return fallback_route("Classifier failed: #{error.class}", duration_ms:, classifier: trace, error:) if error
+        return fallback_route(failure_reason(error), duration_ms:, classifier: trace, error:) if error
 
         resolve(decision, available, duration_ms:, classifier: trace)
       end
@@ -307,6 +345,18 @@ module RubyLLM
       def fallback_route(reason, **attributes)
         registration = self.class.registrations.find { |candidate| candidate.klass == self.class.fallback_class }
         Route.new(mode_class: registration.klass, mode_name: registration.name, inputs:, decided_by: "fallback", reason: reason, **attributes)
+      end
+
+      # "Classifier failed: <class>: <first line of the message>", so a
+      # logged route says what the provider said (Jev's 400 body names
+      # +max_tokens_exceeded+). The message is left out when it is only
+      # the class name, Ruby's default.
+      def failure_reason(error)
+        reason = "Classifier failed: #{error.class}"
+        line = error.message.to_s.lines.first.to_s.strip
+        return reason if line.empty? || line == error.class.name
+
+        "#{reason}: #{line[0, REASON_LIMIT]}"
       end
 
       def run_classifier(backend, request)
@@ -382,10 +432,20 @@ module RubyLLM
         RubyLLM.render_prompt("#{self.class.prompt_path}/#{name}", **inputs, **evaluated)
       end
 
+      # A message within the cap is passed to the classifier as given.
+      def truncate_message(message)
+        limit = self.class.message_limit
+        return message if limit.nil?
+
+        text = message.to_s
+        text.size > limit ? Truncation.head_and_tail(text, limit) : message
+      end
+
       def normalize_history(history)
         entries = history.map { |entry| normalize_entry(entry) }
         limit = self.class.history_limit
-        limit ? entries.last(limit) : entries
+        entries = entries.last(limit) if limit
+        entries.each { |entry| entry[:content] = Truncation.head(entry[:content], self.class.history_entry_limit) }
       end
 
       def normalize_entry(entry)
