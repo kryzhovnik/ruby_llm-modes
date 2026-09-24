@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   prompt follows the chat's own and stays out of a Rails record's history,
   so the call site is `route.mode(chat:).complete`.
 - `RubyLLM::Modes::Router` with the declaration DSL (`inputs`, `mode`,
-  `guidance`, `prompt`, `history`, `fallback`, `classify_with`, `on_error`),
+  `instructions`, `history`, `fallback`, `classify_with`, `on_error`),
   inheritance that copies declarations, validation in `new`, availability
   via `if:`, history normalisation with `history last: n` / `history :all`,
   `call`, `force`, and the ordered outcome table.
@@ -26,9 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the field names as string keys, for logs.
 - `Route#mode(chat:)` builds the mode's agent on the chat with the router's
   inputs as the agent's `inputs:`; `Route#mode_class` is the class.
+- `Router.instructions` mirrors `Agent.instructions`: a string, a block, or
+  the conventional template `app/prompts/<router_path>/instructions.txt.erb`
+  with keyword locals; `prompt(name, **locals)` inside a block renders a
+  template from the same directory.
 - The `:chat` classifier backend with the built-in routing frame, the
-  selection schema, `prompt` overrides (template name or block), and
-  `chat_factory:`.
+  selection schema, and `chat_factory:`.
 - `DeclarationError`, `UnknownMode` (a `KeyError`), and `ContractError`.
 - The `:judge` classifier backend on `RubyLLM.judge`: one `choice` question
   over the modes, `confidence` as the concentration of the probability

@@ -2,10 +2,10 @@
 
 # Acceptance example 1: contextual routing.
 #
-# The router takes a +card+ input and its guidance block mentions the open
-# card only when one is given. The resolved guidance reaches both the
-# built-in chat backend (as part of the system prompt) and a custom
-# classifier (as the +guidance:+ argument).
+# The router takes a +card+ input and its instructions block mentions the
+# open card only when one is given. The resolved instructions reach both
+# the built-in chat backend (as part of the system prompt) and a custom
+# classifier (as the +instructions:+ argument).
 #
 #   bundle exec ruby examples/contextual_routing.rb
 
@@ -29,7 +29,7 @@ module Examples
       mode TutorAgent, as: :tutor
       mode ManageCardsAgent, as: :card
 
-      guidance do
+      instructions do
         text = "Duck is an English-learning app. Route by the learner's intended action."
         text += "\n#{CARD_SENTENCE}" if card
         text
@@ -39,23 +39,23 @@ module Examples
       classify_with :chat, model: "gemini-3.5-flash-lite"
     end
 
-    # A custom classifier that keeps the guidance it was given.
+    # A custom classifier that keeps the instructions it was given.
     class RecordingClassifier
-      attr_reader :guidance
+      attr_reader :instructions
 
-      def call(message:, history:, modes:, guidance:, inputs:)
-        @guidance = guidance
+      def call(message:, history:, modes:, instructions:, inputs:)
+        @instructions = instructions
         RubyLLM::Modes::Decision.new(mode_name: "card", confidence: 0.9, reason: "recorded")
       end
     end
 
     # Runs the router with and without a card against both backends.
-    # Returns the system prompt the chat backend sent and the guidance the
+    # Returns the system prompt the chat backend sent and the instructions the
     # custom classifier received, keyed by backend and by card presence.
     def self.run
       {
         chat: { with_card: chat_prompt(card: "reluctant"), without_card: chat_prompt(card: nil) },
-        custom: { with_card: custom_guidance(card: "reluctant"), without_card: custom_guidance(card: nil) }
+        custom: { with_card: custom_instructions(card: "reluctant"), without_card: custom_instructions(card: nil) }
       }
     end
 
@@ -66,10 +66,10 @@ module Examples
       factory.system_prompt
     end
 
-    def self.custom_guidance(card:)
+    def self.custom_instructions(card:)
       classifier = RecordingClassifier.new
       Router.new(card:).call("add it to my cards", classifier: classifier)
-      classifier.guidance
+      classifier.instructions
     end
   end
 end

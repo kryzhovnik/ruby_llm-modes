@@ -22,7 +22,7 @@ module Examples
 
     # Any object with this +call+ is a classifier.
     class HesitantClassifier
-      def call(message:, history:, modes:, guidance:, inputs:)
+      def call(message:, history:, modes:, instructions:, inputs:)
         RubyLLM::Modes::Decision.new(mode_name: "showtime", confidence: 0.42, reason: "might be asking for a session")
       end
     end

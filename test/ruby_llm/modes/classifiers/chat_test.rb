@@ -38,8 +38,8 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
     assert_equal EXPECTED_PROMPT, Chat.prompt(message: "add it to my cards", history: HISTORY, modes: MODES)
   end
 
-  def test_prompt_places_guidance_between_frame_and_modes
-    text = Chat.prompt(message: "add it to my cards", history: HISTORY, modes: MODES, guidance: "Route by intent.")
+  def test_prompt_places_instructions_between_frame_and_modes
+    text = Chat.prompt(message: "add it to my cards", history: HISTORY, modes: MODES, instructions: "Route by intent.")
     assert_equal EXPECTED_PROMPT.sub("Do not answer the user.\n\n", "Do not answer the user.\n\nRoute by intent.\n\n"), text
   end
 
@@ -70,7 +70,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
     mode TutorAgent
     mode ManageCardsAgent, as: :card
 
-    guidance { "The learner has a flashcard open on screen." if card }
+    instructions { "The learner has a flashcard open on screen." if card }
     fallback TutorAgent, below_confidence: 0.6
     classify_with :chat, model: "gemini-3.5-flash-lite"
   end
@@ -98,7 +98,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
     assert_equal [ { model: "gemini-3.5-flash-lite" } ], factory.calls
   end
 
-  def test_guidance_is_part_of_the_system_prompt
+  def test_instructions_are_part_of_the_system_prompt
     factory = StubProvider::ChatFactory.new(mode: "card")
     CardRouter.new(card: :open).call("hi", classifier: Chat.new(chat_factory: factory))
     assert_includes factory.system_prompt, "The learner has a flashcard open on screen."
@@ -154,50 +154,56 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
     assert_equal({ with: "chat", model: nil }, Chat.new.trace)
   end
 
-  def test_prompt_block_replaces_the_frame_and_sees_locals_and_inputs
+  def test_instructions_template_renders_with_the_inputs
     factory = StubProvider::ChatFactory.new(mode: "card")
     router_class = Class.new(CardRouter) do
+      def self.name = "Examples::CardRouter"
       classify_with :chat, model: "gemini-3.5-flash-lite", chat_factory: factory
-      prompt do
-        "CUSTOM card=#{card.inspect} guidance=#{guidance} modes=#{modes.map(&:name).join(",")} " \
-          "history=#{history.size} message=#{message}"
-      end
+      instructions
     end
 
-    router_class.new(card: :open).call("add it", history: HISTORY)
-    assert_equal "CUSTOM card=:open guidance=The learner has a flashcard open on screen. modes=tutor,card history=2 message=add it",
-                 factory.system_prompt
-  end
-
-  def test_prompt_template_renders_through_render_prompt_with_the_locals
-    factory = StubProvider::ChatFactory.new(mode: "card")
-    router_class = Class.new(CardRouter) do
-      classify_with :chat, model: "gemini-3.5-flash-lite", chat_factory: factory
-      prompt "routers/card"
-    end
-
-    Dir.mktmpdir do |dir|
-      FileUtils.mkdir_p(File.join(dir, "routers"))
-      File.write(File.join(dir, "routers/card.txt.erb"), "TEMPLATE <%= modes.map(&:name).join(',') %> <%= guidance %> <%= history.size %> <%= message %> <%= card %>")
-      RubyLLM::Prompt.roots << dir
-
+    with_prompt_root("examples/card_router/instructions.txt.erb" => "TEMPLATE card=<%= card %>") do
       router_class.new(card: "c1").call("add it", history: HISTORY)
-      assert_equal "TEMPLATE tutor,card The learner has a flashcard open on screen. 2 add it c1", factory.system_prompt
-    ensure
-      RubyLLM::Prompt.roots.instance_variable_get(:@registered).delete_if { |root| root.to_s == dir }
+      assert_includes factory.system_prompt, "TEMPLATE card=c1\n\nModes:"
     end
   end
 
-  def test_missing_template_is_a_classifier_failure
+  def test_instructions_template_locals_run_on_the_router
     factory = StubProvider::ChatFactory.new(mode: "card")
     router_class = Class.new(CardRouter) do
-      classify_with :chat, chat_factory: factory
-      prompt "routers/missing"
+      def self.name = "Examples::CardRouter"
+      classify_with :chat, model: "gemini-3.5-flash-lite", chat_factory: factory
+      instructions deck: -> { "#{card}-deck" }, level: "b2"
     end
 
-    route = router_class.new(card: nil).call("add it")
-    assert_equal "fallback", route.decided_by
-    assert_equal "Classifier failed: RubyLLM::PromptNotFoundError", route.reason
+    with_prompt_root("examples/card_router/instructions.txt.erb" => "<%= deck %> <%= level %>") do
+      router_class.new(card: "c1").call("add it", history: HISTORY)
+      assert_includes factory.system_prompt, "c1-deck b2\n\nModes:"
+    end
+  end
+
+  def test_instructions_block_can_render_a_template_by_name
+    factory = StubProvider::ChatFactory.new(mode: "card")
+    router_class = Class.new(CardRouter) do
+      def self.name = "Examples::CardRouter"
+      classify_with :chat, model: "gemini-3.5-flash-lite", chat_factory: factory
+      instructions { "#{prompt("routing", tone: "brief")} Card: #{card}." }
+    end
+
+    with_prompt_root("examples/card_router/routing.txt.erb" => "Be <%= tone %>, <%= card %>.") do
+      router_class.new(card: "c1").call("add it", history: HISTORY)
+      assert_includes factory.system_prompt, "Be brief, c1. Card: c1.\n\nModes:"
+    end
+  end
+
+  def test_missing_template_is_a_declaration_error
+    router_class = Class.new(CardRouter) do
+      def self.name = "Examples::CardRouter"
+      instructions
+    end
+
+    error = assert_raises(RubyLLM::Modes::DeclarationError) { router_class.new(card: nil) }
+    assert_match %r{instructions template not found at .*examples/card_router/instructions\.txt\.erb}, error.message
   end
 
   def test_non_object_json_is_a_contract_error
@@ -205,5 +211,22 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
     factory.instance_variable_set(:@selection, [ "card" ])
     route = CardRouter.new(card: nil).call("add it", classifier: Chat.new(chat_factory: factory))
     assert_instance_of RubyLLM::Modes::ContractError, route.error
+  end
+
+  private
+
+  # Serves +files+ (path under app/prompts => ERB source) from a temporary
+  # prompt root for the block.
+  def with_prompt_root(files)
+    Dir.mktmpdir do |dir|
+      files.each do |path, source|
+        FileUtils.mkdir_p(File.dirname(File.join(dir, path)))
+        File.write(File.join(dir, path), source)
+      end
+      RubyLLM::Prompt.roots << dir
+      yield
+    ensure
+      RubyLLM::Prompt.roots.instance_variable_get(:@registered).delete_if { |root| root.to_s == dir }
+    end
   end
 end

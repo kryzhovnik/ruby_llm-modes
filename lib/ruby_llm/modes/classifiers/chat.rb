@@ -5,15 +5,14 @@ module RubyLLM
     module Classifiers
       # The +:chat+ backend: one structured-output turn on a RubyLLM chat.
       #
-      # The system prompt is the frame of the spec (Chat.prompt) unless the
-      # router declares +prompt+, in which case +prompt:+ is a callable that
-      # returns the full text. +chat_factory:+ replaces RubyLLM.chat; it is
-      # called with +model:+ and must return a chat. +confidence+ is the
-      # model's self-report.
+      # The system prompt is the frame of the spec (Chat.prompt): the
+      # router's instructions, the modes, and the conversation.
+      # +chat_factory:+ replaces RubyLLM.chat; it is called with +model:+
+      # and must return a chat. +confidence+ is the model's self-report.
       #
       # Any object with the same +call+ signature is a valid classifier:
       #
-      #   call(message:, history:, modes:, guidance:, inputs:) # => Decision
+      #   call(message:, history:, modes:, instructions:, inputs:) # => Decision
       #
       class Chat
         FRAME_HEAD = <<~TEXT.strip
@@ -26,15 +25,14 @@ module RubyLLM
 
         attr_reader :model, :chat_factory
 
-        def initialize(model: nil, chat_factory: nil, prompt: nil)
+        def initialize(model: nil, chat_factory: nil)
           @model = model
           @chat_factory = chat_factory
-          @prompt = prompt
         end
 
-        def call(message:, history:, modes:, guidance:, inputs:)
+        def call(message:, history:, modes:, instructions:, inputs:)
           @resolved_model = nil
-          text = system_prompt(message:, history:, modes:, guidance:, inputs:)
+          text = self.class.prompt(message:, history:, modes:, instructions:)
           chat = build_chat
           response = chat.with_instructions(text).with_schema(self.class.schema_for(modes)).ask(message)
           decision_from(response)
@@ -46,13 +44,13 @@ module RubyLLM
           { with: "chat", model: @resolved_model || model }
         end
 
-        # The built-in system prompt for +modes+ (Registration values) and
-        # the normalised +history+. The latest +message+ is
-        # the user turn, so it is not repeated here; a custom +prompt+ may
-        # still use it.
-        def self.prompt(message:, history:, modes:, guidance: nil)
+        # The system prompt for +modes+ (Registration values) and the
+        # normalised +history+, with the router's +instructions+ between
+        # the frame and the modes. The latest +message+ is the user turn,
+        # so it is not repeated here.
+        def self.prompt(message:, history:, modes:, instructions: nil)
           sections = [ FRAME_HEAD ]
-          sections << guidance unless guidance.nil? || guidance.empty?
+          sections << instructions unless instructions.nil? || instructions.empty?
           sections << "Modes:\n#{modes.map { |mode| "- #{mode.name}: #{indent(mode.description)}" }.join("\n")}"
           sections << "Conversation:\n#{history.map { |entry| transcript_line(entry) }.join("\n")}" if history.any?
           sections << FRAME_TAIL
@@ -80,12 +78,6 @@ module RubyLLM
         private_class_method :indent, :transcript_line
 
         private
-
-        def system_prompt(message:, history:, modes:, guidance:, inputs:)
-          return self.class.prompt(message:, history:, modes:, guidance:) unless @prompt
-
-          @prompt.call(message:, history:, modes:, guidance:, inputs:).to_s
-        end
 
         # The trace is plain data for logs, so only a String model id is
         # kept: a stand-in chat that answers every message with itself must

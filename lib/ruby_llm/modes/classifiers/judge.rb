@@ -6,7 +6,7 @@ module RubyLLM
       # The +:judge+ backend: one RubyLLM.judge call with a single +choice+
       # question over the available modes.
       #
-      # The state is the routing input as data (guidance, conversation,
+      # The state is the routing input as data (instructions, conversation,
       # latest message); the mode descriptions are the choice options. The
       # answer carries a probability per mode, and +confidence+ is the
       # concentration of that distribution, not a self-report: a different
@@ -38,9 +38,9 @@ module RubyLLM
           @judge = judge
         end
 
-        def call(message:, history:, modes:, guidance:, inputs:)
+        def call(message:, history:, modes:, instructions:, inputs:)
           @resolved_model = nil
-          state = self.class.state(message:, history:, guidance:)
+          state = self.class.state(message:, history:, instructions:)
           judgment = judge.call(state, questions: self.class.questions(modes), **model_options)
           decision_from(judgment)
         end
@@ -51,11 +51,11 @@ module RubyLLM
           { with: "judge", model: @resolved_model || model }
         end
 
-        # The judgment state: +guidance+ when present, the normalised
+        # The judgment state: +instructions+ when present, the normalised
         # +history+ as a conversation, and the latest +message+.
-        def self.state(message:, history:, guidance: nil)
+        def self.state(message:, history:, instructions: nil)
           state = {}
-          state["guidance"] = guidance unless guidance.nil? || guidance.empty?
+          state["instructions"] = instructions unless instructions.nil? || instructions.empty?
           state["conversation"] = history.map { |entry| transcript_entry(entry) } if history.any?
           state["latest_message"] = message.to_s
           state

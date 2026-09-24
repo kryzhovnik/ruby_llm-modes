@@ -16,7 +16,7 @@ first consumer; its migration lives in Duck's `WORKLOG-modes.md`.
 | Term       | Meaning                                                            |
 |------------|--------------------------------------------------------------------|
 | Mode       | An agent class that can take one turn of an existing chat          |
-| Router     | The declaration: modes, fallback, classifier, guidance             |
+| Router     | The declaration: modes, fallback, classifier, instructions         |
 | Decision   | What the classifier said, untouched                                |
 | Route      | What the router decided, with the decision attached                |
 | Classifier | A backend that turns (message, history, modes) into a Decision     |
@@ -65,7 +65,7 @@ class ChatModeRouter < RubyLLM::Modes::Router
   mode ShowtimeAgent, if: -> { user.showtime_enabled? } # availability per call
   mode Chat::ReviewAgent, as: :review                  # registration name
 
-  guidance do                               # optional, string or block
+  instructions do                           # optional; string, block, or template
     text = "Duck is an English-learning app. Route by the learner's intended action."
     text += "\nThe learner has a flashcard open on screen." if card
     text
@@ -81,7 +81,7 @@ end
 Macros:
 
 - `inputs *names` — declared like Agent inputs. Available as methods inside
-  `if:`, `guidance`, and `prompt` blocks, and passed to a custom classifier.
+  `if:` and `instructions` blocks, and passed to a custom classifier.
 - `mode klass, description = nil, as: nil, if: nil` — registers a mode.
   `klass` must be a `RubyLLM::Agent` subclass, registered once per router
   (v0.1: one registration per class, so `fallback klass` is unambiguous).
@@ -90,10 +90,17 @@ Macros:
   else the derivation in §2. Precedence is the same for both: the router's
   inline value wins over the class's declaration, which wins over the
   derived default. `if:` is a lambda run on the router instance.
-- `guidance text = nil, &block` — cross-mode routing text. Both backends
-  receive the same resolved string.
-- `prompt name = nil, &block` — replaces the chat backend's built-in system
-  prompt (§6). Incompatible with `:judge`; validated at `new`.
+- `instructions text = nil, **locals, &block` — the app's text for the
+  classifier, mirroring `Agent.instructions`: a string; a block run on the
+  router instance (inputs are methods; `prompt(name, **locals)` renders
+  `app/prompts/<router_path>/<name>.txt.erb` with the inputs and the
+  locals); or, with no text and no block, the conventional template
+  `app/prompts/<router_path>/instructions.txt.erb` rendered with the inputs
+  and `locals` (a Proc local runs on the router instance). `<router_path>`
+  is the class name underscored, `ChatModeRouter` → `chat_mode_router`. A
+  conventional template that does not exist is a `DeclarationError` at
+  `new`. Both backends receive the same resolved string: inside the `:chat`
+  frame (§6), as `instructions` in the `:judge` state.
 - `history last: n` — keep only the last `n` history entries as given, any
   role; `history :all` (the default) keeps every entry. Anything else is an
   `ArgumentError` at declaration time.
@@ -107,7 +114,7 @@ Macros:
 
 Inheritance: subclassing a router copies its declarations (as Agent does);
 changes in the subclass never touch the parent. `mode` appends to the
-inherited list; `fallback`, `classify_with`, `guidance`, `prompt`, `history`,
+inherited list; `fallback`, `classify_with`, `instructions`, `history`,
 `on_error` replace. `mode_description` is **not** inherited: every mode
 declares its own (`ApplicationModeAgent` has none and is not routable).
 `mode_name` is derived per class unless overridden on that class.
@@ -128,7 +135,7 @@ Validation happens in `new`, not at class definition (there is no reliable
 - duplicate registration names
 - a mode without a description
 - `classify_with :judge` when `RubyLLM.judge` is not defined and no `judge:` is given
-- `prompt` declared together with `:judge`
+- `instructions` selecting a conventional template that does not exist
 - the same class registered twice
 - a declared input not passed to `new` (`ArgumentError`, the router's own
   rule; Agent does not check, its blocks fail later with `NameError`).
@@ -160,7 +167,7 @@ Decision = Data.define(:mode_name, :confidence, :reason, :probabilities)
 # the router raises RubyLLM::Modes::ContractError through the "classifier
 # raised" path (fallback route, error set), never compares it.
 
-classifier.call(message:, history:, modes:, guidance:, inputs:) # → Decision
+classifier.call(message:, history:, modes:, instructions:, inputs:) # → Decision
 # modes: the Registration values available for this call (name, description,
 # klass, condition), the same objects Router#modes returns
 ```
@@ -175,7 +182,7 @@ Built-in backends:
   `Llm.chat`, for its usage ledger). `confidence` is the model's
   self-report.
 - `:judge` — one `RubyLLM.judge` call with a single `choice` question
-  whose options are the modes; the state is `guidance`, the conversation,
+  whose options are the modes; the state is `instructions`, the conversation,
   and the latest message as data. `model:` and `provider:` are passed
   through when given; `judge:` replaces `RubyLLM.judge` for tests.
   `confidence` is the distribution concentration; `reason` is nil;
@@ -206,7 +213,7 @@ You route the latest user message to one of the modes below.
 Choose exactly one. Use the conversation only to understand what the
 latest message refers to. Do not answer the user.
 
-<guidance, if any>
+<instructions, if any>
 
 Modes:
 - tutor: Explains words and grammar, corrects the learner, keeps the
@@ -225,11 +232,11 @@ Text sources, lightest to fullest:
 
 1. `mode_description` on the agent
 2. inline description in `mode klass, "..."`
-3. `guidance` on the router (string or block; inputs visible)
-4. `prompt` on the router: a template name resolved with
-   `RubyLLM.render_prompt(name, modes:, guidance:, history:, message:, **inputs)`
-   from the app's own `app/prompts/`, or a block returning the full text
-   (same locals as methods). Replaces the frame entirely.
+3. `instructions` on the router (string, block, or template; inputs visible)
+
+The frame is the gem's and is not configurable from the declaration. An app
+that needs another frame plugs a custom classifier (§5) or subclasses
+`Classifiers::Chat` and overrides `self.prompt`.
 
 ## 7. Route
 
@@ -336,7 +343,7 @@ thing to revisit (a `Route#apply` with reset semantics), not the router.
 Three small programs in `examples/`, also run as integration tests with a
 fake `:chat` backend:
 
-1. **Contextual routing.** Router with `inputs :card`, `guidance` block that
+1. **Contextual routing.** Router with `inputs :card`, `instructions` block that
    mentions the open card; assert the resolved prompt contains the sentence
    only when `card` is given, for both a fake chat backend and a custom
    classifier.
@@ -375,7 +382,7 @@ add API.
 - **`classify_with` validation** also raises `DeclarationError` for an
   unknown backend symbol and for an object that does not respond to `call`.
   `:judge` is rejected when `RubyLLM.judge` is missing and no `judge:` is
-  given; the `prompt` conflict is reported first.
+  given.
 - **Input names** must not shadow a method the router instance already has
   (its own, such as `classifier` or `modes`, or Object's, such as `send`);
   `validate!` raises `DeclarationError` for them.
@@ -407,13 +414,13 @@ add API.
   Float. JSON parse errors surface as `Classifier failed: JSON::ParserError`.
 - **Prompt rendering**: the gem does not wrap text. A multi-line description
   is rendered with continuation lines indented by two spaces. `Conversation:`
-  is omitted when the history is empty; guidance is omitted when blank. An
+  is omitted when the history is empty; instructions are omitted when blank. An
   entry with a nil role is a bare line.
 - **`mode_description`** strips surrounding whitespace. **`mode_name`
   derivation** keeps a segment that is exactly `Agent` (`Foo::Agent` →
   `"foo/agent"`) and returns nil for an anonymous class, which the router
   reports as "no registration name" unless `as:` is given.
-- **`guidance`**: strings are stripped; a blank result is nil.
+- **`instructions`**: the resolved text is stripped; a blank result is nil.
 - **`Router#modes`** returns `RubyLLM::Modes::Registration` values (`klass`,
   `name`, `description`, `condition`), evaluated on every call; the
   classifier receives the same objects as `modes:`.

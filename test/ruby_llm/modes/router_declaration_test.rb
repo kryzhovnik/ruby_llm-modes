@@ -15,7 +15,7 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
     mode Chat::ReviewAgent, as: :review
     mode PlainAgent, "A plain agent"
 
-    guidance { card ? "A card is open." : "No card." }
+    instructions { card ? "A card is open." : "No card." }
     history last: 6
     fallback TutorAgent, below_confidence: 0.6
     classify_with FakeClassifier.new
@@ -102,7 +102,7 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
     mode Class.new(RubyLLM::ModeAgent) { mode_description "Extra" }, as: :extra
     fallback ClarifyAgent
     history last: 2
-    guidance "Sub guidance"
+    instructions "Sub instructions"
   end
 
   def test_subclass_appends_modes
@@ -113,7 +113,7 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
     assert_equal ClarifyAgent, SubRouter.fallback_class
     assert_nil SubRouter.below_confidence
     assert_equal 2, SubRouter.history_limit
-    assert_equal "Sub guidance", SubRouter.guidance_source
+    assert_equal "Sub instructions", SubRouter.instructions_source
   end
 
   def test_subclass_changes_never_touch_the_parent
@@ -121,7 +121,7 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
     assert_equal TutorAgent, BaseRouter.fallback_class
     assert_equal 0.6, BaseRouter.below_confidence
     assert_equal 6, BaseRouter.history_limit
-    assert_kind_of Proc, BaseRouter.guidance_source
+    assert_kind_of Proc, BaseRouter.instructions_source
   end
 
   def test_subclass_inherits_inputs_and_classifier
@@ -247,15 +247,6 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
     end
   end
 
-  def test_prompt_with_judge
-    assert_declaration_error(/prompt cannot be declared with the :judge backend/) do
-      mode TutorAgent
-      fallback TutorAgent
-      prompt { "custom" }
-      classify_with :judge
-    end
-  end
-
   def test_same_class_registered_twice
     assert_declaration_error(/TutorAgent is registered twice/) do
       mode TutorAgent
@@ -290,7 +281,7 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
 
   def test_classifier_class_responding_to_call_is_accepted
     callable_class = Class.new do
-      def self.call(message:, history:, modes:, guidance:, inputs:)
+      def self.call(message:, history:, modes:, instructions:, inputs:)
         RubyLLM::Modes::Decision.new(mode_name: "tutor")
       end
     end

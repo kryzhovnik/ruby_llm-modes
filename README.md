@@ -85,7 +85,7 @@ class ChatModeRouter < RubyLLM::Modes::Router
   mode ShowtimeAgent, if: -> { user.showtime_enabled? } # availability per call
   mode Chat::ReviewAgent, as: :review                  # registration name
 
-  guidance do                               # optional, string or block
+  instructions do                           # optional; string, block, or template
     text = "Duck is an English-learning app. Route by the learner's intended action."
     text += "\nThe learner has a flashcard open on screen." if card
     text
@@ -99,12 +99,20 @@ end
 ```
 
 - `inputs` are required keywords of `new` (`card: nil` counts as passed)
-  and become methods inside `if:`, `guidance`, and `prompt` blocks.
+  and become methods inside `if:` and `instructions` blocks.
 - `mode` registers an agent class once. Without an inline description the
   class must have a `mode_description`. The router's declaration wins over
   the class's: an inline description overrides `mode_description`, and
   `as:` overrides `mode_name`, which in turn overrides the name derived
   from the class.
+- `instructions` is the app's text for the classifier, ahead of the modes
+  and the conversation. It takes the same forms as `instructions` in an
+  Agent: a string, a block, or the conventional template
+  `app/prompts/chat_mode_router/instructions.txt.erb`, selected by a bare
+  `instructions` or by keyword locals (`instructions deck: -> { card.deck }`;
+  a Proc runs on the router, and the inputs are locals too). Inside a
+  block, `prompt("name", **locals)` renders a template from the same
+  directory. Both backends receive the same resolved string.
 - `fallback` is required. It is the mode used whenever the classifier is
   ignored: it raised, named an unknown or unavailable mode, or scored below
   `below_confidence`. Pass no threshold to accept any confidence.
@@ -117,7 +125,8 @@ The declaration is validated when a router is built with `new`, and every
 problem is a `RubyLLM::Modes::DeclarationError`: no fallback, no
 classifier, a fallback
 that is not registered or has an `if:`, duplicate names, a mode without a
-description, the same class registered twice, or an unavailable backend.
+description, the same class registered twice, an unavailable backend, or a
+missing instructions template.
 
 ### Routing a turn
 
@@ -169,8 +178,8 @@ is not called when the fallback is the only available mode.
 ### `:chat`
 
 One structured-output turn on `RubyLLM.chat(model:)`. The system prompt
-is a short frame: your `guidance`, the modes with their descriptions, and
-the conversation. The latest message is the user turn.
+is a short frame: your `instructions`, the modes with their descriptions,
+and the conversation. The latest message is the user turn.
 The model returns `mode` (an enum of the available names), `confidence`,
 and `reason`.
 
@@ -183,17 +192,16 @@ Options:
 
 - `chat_factory: ->(model:) { ... }` replaces the chat constructor, for
   apps that route every LLM call through their own wrapper.
-- `prompt "routers/chat_mode"` renders `app/prompts/routers/chat_mode.txt.erb`
-  through `RubyLLM.render_prompt` with `modes`, `guidance`, `history`,
-  `message`, and the inputs as locals, and uses the result as the whole
-  system prompt. `prompt { ... }` does the same with a block that sees the
-  same names as methods.
+
+The frame itself is not configurable. An app that needs a different one
+plugs a [custom classifier](#plugging-a-custom-classifier), or subclasses
+`RubyLLM::Modes::Classifiers::Chat` and overrides `self.prompt`.
 
 ### `:judge`
 
 One `RubyLLM.judge` call with a single `choice` question whose options are
 the modes and their descriptions. The state is data, not a prompt: your
-`guidance`, the conversation as `{ role, content }` entries, and the
+`instructions`, the conversation as `{ role, content }` entries, and the
 latest message. The answer is a probability per mode; the decision's
 `mode_name` is the most likely one and `probabilities` carries the
 distribution.
@@ -213,7 +221,7 @@ Options:
 
 `RubyLLM.judge` ships in RubyLLM after 2.0.0. On a release without it,
 `classify_with :judge` raises `DeclarationError` when the router is built,
-unless `judge:` is given. `prompt` cannot be declared with this backend.
+unless `judge:` is given.
 
 ## Applying a mode
 
@@ -274,7 +282,7 @@ A classifier is any object with this method:
 
 ```ruby
 class KeywordClassifier
-  def call(message:, history:, modes:, guidance:, inputs:)
+  def call(message:, history:, modes:, instructions:, inputs:)
     name = modes.map(&:name).find { |candidate| message.downcase.include?(candidate) }
     RubyLLM::Modes::Decision.new(mode_name: name, confidence: name ? 1.0 : nil, reason: "keyword match")
   end
@@ -289,7 +297,7 @@ end
 - `modes` is the `Registration` values available on this call, the same
   objects `router.modes` returns: each has `name`, `description`, and
   `klass`, the agent class. `history` is the normalised
-  `[{ role:, content: }]`; `guidance` is the resolved string or nil;
+  `[{ role:, content: }]`; `instructions` is the resolved string or nil;
   `inputs` is the hash passed to `new`.
 - Return a `Decision`. `mode_name` is a String or nil, `confidence` is a
   number from 0 to 1 or nil for "not scored", `reason` and
@@ -310,7 +318,7 @@ router.call(message, history:, classifier: FakeClassifier.new(decision))
 ## Examples
 
 `examples/` holds three runnable programs that double as the integration
-tests: contextual routing through `guidance`, a tool mode followed by a
+tests: contextual routing through `instructions`, a tool mode followed by a
 clarification mode on one chat, and a custom classifier whose
 low-confidence decision falls back with a full trace.
 

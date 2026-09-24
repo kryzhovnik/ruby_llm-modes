@@ -45,15 +45,15 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
     mode TutorAgent
     mode ManageCardsAgent, as: :card
 
-    guidance { "The learner has a flashcard open on screen." if card }
+    instructions { "The learner has a flashcard open on screen." if card }
     fallback TutorAgent, below_confidence: 0.6
     classify_with :judge, model: "jev-latest", judge: FakeJudge.new
   end
 
-  def test_state_carries_guidance_conversation_and_the_latest_message
-    state = Judge.state(message: "add it to my cards", history: HISTORY, guidance: "Route by intent.")
+  def test_state_carries_instructions_conversation_and_the_latest_message
+    state = Judge.state(message: "add it to my cards", history: HISTORY, instructions: "Route by intent.")
     assert_equal({
-      "guidance" => "Route by intent.",
+      "instructions" => "Route by intent.",
       "conversation" => [
         { "role" => "user", "content" => 'what does "reluctant" mean?' },
         { "role" => "assistant", "content" => "Reluctant means unwilling or hesitant ..." }
@@ -62,8 +62,8 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
     }, state)
   end
 
-  def test_state_omits_empty_guidance_and_history
-    assert_equal({ "latest_message" => "hello" }, Judge.state(message: "hello", history: [], guidance: nil))
+  def test_state_omits_empty_instructions_and_history
+    assert_equal({ "latest_message" => "hello" }, Judge.state(message: "hello", history: [], instructions: nil))
   end
 
   def test_state_renders_role_less_entries_as_bare_strings
@@ -84,7 +84,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
     route = CardRouter.new(card: :open).call("add it to my cards", history: HISTORY, classifier: Judge.new(model: "jev-latest", judge: judge))
 
     call = judge.last_call
-    assert_equal Judge.state(message: "add it to my cards", history: HISTORY, guidance: "The learner has a flashcard open on screen."), call[:state]
+    assert_equal Judge.state(message: "add it to my cards", history: HISTORY, instructions: "The learner has a flashcard open on screen."), call[:state]
     assert_equal %w[tutor card], call[:questions][:mode][:options].keys
     assert_equal ManageCardsAgent.mode_description, call[:questions][:mode][:options]["card"]
     assert_equal({ model: "jev-latest" }, call[:options])
@@ -169,7 +169,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
     skip "this RubyLLM ships Judge" if Judge.available?
 
     error = assert_raises(RubyLLM::Modes::DeclarationError) do
-      Judge.new.call(message: "hi", history: [], modes: MODES, guidance: nil, inputs: {})
+      Judge.new.call(message: "hi", history: [], modes: MODES, instructions: nil, inputs: {})
     end
     assert_match(/RubyLLM.judge is not available/, error.message)
   end

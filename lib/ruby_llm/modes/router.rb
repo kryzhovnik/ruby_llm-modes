@@ -2,7 +2,7 @@
 
 module RubyLLM
   module Modes
-    # The declaration: modes, a fallback, a classifier, and guidance.
+    # The declaration: modes, a fallback, a classifier, and instructions.
     #
     #   class ChatModeRouter < RubyLLM::Modes::Router
     #     inputs :user, :card
@@ -11,7 +11,7 @@ module RubyLLM
     #     mode ManageCardsAgent, "Manages flashcards"
     #     mode ShowtimeAgent, if: -> { user.showtime_enabled? }
     #
-    #     guidance { "The learner has a flashcard open." if card }
+    #     instructions { "The learner has a flashcard open." if card }
     #     history last: 6
     #     fallback TutorAgent, below_confidence: 0.6
     #     classify_with :chat, model: "gemini-3.5-flash-lite"
@@ -32,8 +32,7 @@ module RubyLLM
           super
           subclass.instance_variable_set(:@registrations, registrations.dup)
           subclass.instance_variable_set(:@input_names, input_names.dup)
-          subclass.instance_variable_set(:@guidance_source, @guidance_source)
-          subclass.instance_variable_set(:@prompt_source, @prompt_source)
+          subclass.instance_variable_set(:@instructions_source, @instructions_source)
           subclass.instance_variable_set(:@history_limit, @history_limit)
           subclass.instance_variable_set(:@fallback_class, @fallback_class)
           subclass.instance_variable_set(:@below_confidence, @below_confidence)
@@ -43,7 +42,7 @@ module RubyLLM
 
         # Declares runtime inputs. Every declared name must be passed to
         # +new+; each is then a method on the router instance, visible in
-        # +if:+, +guidance+, and +prompt+ blocks. Called with no arguments,
+        # +if:+ and +instructions+ blocks. Called with no arguments,
         # returns the declared names.
         def inputs(*names)
           return input_names if names.empty?
@@ -66,18 +65,29 @@ module RubyLLM
           )
         end
 
-        # Cross-mode routing text, a string or a block run on the router
-        # instance. Every backend receives the same resolved string.
-        def guidance(text = nil, &block)
-          @guidance_source = block || text
+        # The app's text for the classifier, ahead of the modes and the
+        # conversation. Like Agent#instructions it accepts a string, a
+        # block run on the router instance (inputs are methods, and
+        # +prompt(name, **locals)+ renders a template next to the router's
+        # own), or keyword locals for the conventional template
+        # <tt>app/prompts/<router_path>/instructions.txt.erb</tt>, which a
+        # bare +instructions+ also selects. Procs among the locals run on
+        # the router instance. Every backend receives the same resolved
+        # string.
+        #
+        #   instructions "Route by the learner's intended action."
+        #   instructions { "The learner has a flashcard open." if card }
+        #   instructions                                  # chat_mode_router/instructions.txt.erb
+        #   instructions deck: -> { card.deck.name }      # the same template, with a local
+        def instructions(text = nil, **locals, &block)
+          @instructions_source = block || text || { prompt: "instructions", locals: locals }
         end
 
-        # Replaces the chat backend's built-in system prompt: a template name
-        # rendered with RubyLLM.render_prompt, or a block returning the full
-        # text. Both see +modes+, +guidance+, +history+, +message+, and the
-        # inputs. Incompatible with the +:judge+ backend.
-        def prompt(name = nil, &block)
-          @prompt_source = block || name
+        # The directory under +app/prompts/+ for this router's templates:
+        # +ChatModeRouter+ is +chat_mode_router+, +Duck::ChatRouter+ is
+        # +duck/chat_router+.
+        def prompt_path
+          RubyLLM::Support::Utils.underscore((name || "router").gsub("::", "/"))
         end
 
         # How much of the +history:+ given to +call+ reaches the classifier.
@@ -124,8 +134,7 @@ module RubyLLM
         def below_confidence = @below_confidence
         def classifier_spec = @classifier_spec
         def error_handler = @error_handler
-        def guidance_source = @guidance_source
-        def prompt_source = @prompt_source
+        def instructions_source = @instructions_source
 
         # Checks the declaration; raises DeclarationError on the first problem.
         def validate!
@@ -136,6 +145,7 @@ module RubyLLM
           validate_uniqueness!
           validate_fallback!
           validate_classifier!
+          validate_instructions!
         end
 
         private
@@ -185,6 +195,16 @@ module RubyLLM
           raise DeclarationError, "#{name}: fallback #{fallback_class} must not have an if: condition" if registration.condition
         end
 
+        # A conventional template is looked up here, not on the first call.
+        def validate_instructions!
+          return unless instructions_source.is_a?(Hash)
+
+          template = RubyLLM::Prompt.new("#{prompt_path}/#{instructions_source[:prompt]}")
+          return if File.exist?(template.path)
+
+          raise DeclarationError, "#{name}: instructions template not found at #{template.path}"
+        end
+
         def validate_classifier!
           raise DeclarationError, "#{name}: no classifier declared; add classify_with :chat, :judge, or an object" if classifier_spec.nil?
 
@@ -193,7 +213,6 @@ module RubyLLM
           when :chat
             nil
           when :judge
-            raise DeclarationError, "#{name}: prompt cannot be declared with the :judge backend" if prompt_source
             return if classifier_spec[:options][:judge] || Classifiers::Judge.available?
 
             raise DeclarationError, "#{name}: RubyLLM.judge is not available in ruby_llm #{RubyLLM::VERSION}; the :judge backend needs a release that ships RubyLLM::Judge"
@@ -245,7 +264,7 @@ module RubyLLM
           message: message,
           history: normalize_history(history),
           modes: available,
-          guidance: resolved_guidance,
+          instructions: resolved_instructions,
           inputs: inputs
         }
 
@@ -337,7 +356,7 @@ module RubyLLM
         spec = self.class.classifier_spec
         case spec[:with]
         when :chat
-          Classifiers::Chat.new(model: spec[:model], prompt: prompt_renderer, **spec[:options])
+          Classifiers::Chat.new(model: spec[:model], **spec[:options])
         when :judge
           Classifiers::Judge.new(model: spec[:model], **spec[:options])
         else
@@ -345,27 +364,22 @@ module RubyLLM
         end
       end
 
-      def prompt_renderer
-        source = self.class.prompt_source
-        return if source.nil?
-
-        lambda do |message:, history:, modes:, guidance:, inputs:|
-          if source.is_a?(Proc)
-            locals = inputs.merge(message:, history:, modes:, guidance:)
-            context = Object.new
-            locals.each { |local_name, value| context.define_singleton_method(local_name) { value } }
-            context.instance_exec(&source)
-          else
-            RubyLLM.render_prompt(source, modes:, guidance:, history:, message:, **inputs)
-          end
+      def resolved_instructions
+        source = self.class.instructions_source
+        text = case source
+        when Proc then instance_exec(&source)
+        when Hash then prompt(source[:prompt], **source[:locals])
+        else source
         end
-      end
-
-      def resolved_guidance
-        source = self.class.guidance_source
-        text = source.is_a?(Proc) ? instance_exec(&source) : source
         text = text&.to_s&.strip
         text unless text.nil? || text.empty?
+      end
+
+      # Renders <tt>app/prompts/<prompt_path>/<name>.txt.erb</tt> with the
+      # inputs and +locals+; a Proc local runs on the router instance.
+      def prompt(name, **locals)
+        evaluated = locals.transform_values { |value| value.is_a?(Proc) ? instance_exec(&value) : value }
+        RubyLLM.render_prompt("#{self.class.prompt_path}/#{name}", **inputs, **evaluated)
       end
 
       def normalize_history(history)

@@ -55,9 +55,9 @@ class FakeClassifier
     new(RubyLLM::Modes::Decision.new(mode_name:, confidence:, reason:, probabilities:))
   end
 
-  def call(message:, history:, modes:, guidance:, inputs:)
-    @calls << { message:, history:, modes:, guidance:, inputs: }
-    @block ? @block.call(message:, history:, modes:, guidance:, inputs:) : @decision
+  def call(message:, history:, modes:, instructions:, inputs:)
+    @calls << { message:, history:, modes:, instructions:, inputs: }
+    @block ? @block.call(message:, history:, modes:, instructions:, inputs:) : @decision
   end
 
   def called?

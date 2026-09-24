@@ -15,19 +15,19 @@ class Examples::ContextualRoutingTest < Minitest::Test
     refute_includes @results[:chat][:without_card], SENTENCE
   end
 
-  def test_chat_backend_prompt_keeps_the_frame_around_the_guidance
+  def test_chat_backend_prompt_keeps_the_frame_around_the_instructions
     prompt = @results[:chat][:with_card]
     assert_match(/\ADo not answer the user\.|You route the latest user message/, prompt)
     assert_includes prompt, "Route by the learner's intended action.\n#{SENTENCE}\n\nModes:\n- tutor:"
     refute_includes prompt, "add it to my cards"
   end
 
-  def test_custom_classifier_receives_the_guidance_with_the_card_only_when_given
+  def test_custom_classifier_receives_the_instructions_with_the_card_only_when_given
     assert_includes @results[:custom][:with_card], SENTENCE
     refute_includes @results[:custom][:without_card], SENTENCE
   end
 
-  def test_both_backends_receive_the_same_resolved_guidance
+  def test_both_backends_receive_the_same_resolved_instructions
     assert_includes @results[:chat][:with_card], @results[:custom][:with_card]
     assert_includes @results[:chat][:without_card], @results[:custom][:without_card]
   end

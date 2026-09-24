@@ -262,32 +262,32 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
     assert_equal [ TutorAgent, ManageCardsAgent ], call[:modes].map(&:klass)
     assert_equal %w[tutor card], call[:modes].map(&:name)
     assert_equal [ TutorAgent.mode_description, ManageCardsAgent.mode_description ], call[:modes].map(&:description)
-    assert_nil call[:guidance]
+    assert_nil call[:instructions]
     assert_equal({ showtime_enabled: false }, call[:inputs])
   end
 
   class GuidedRouter < ThresholdRouter
-    guidance { showtime_enabled ? "Showtime is on." : "Showtime is off." }
+    instructions { showtime_enabled ? "Showtime is on." : "Showtime is off." }
   end
 
-  def test_guidance_block_sees_inputs
+  def test_instructions_block_sees_inputs
     classifier = FakeClassifier.deciding(mode_name: "card")
     route(classifier, router: GuidedRouter, showtime_enabled: false)
-    assert_equal "Showtime is off.", classifier.last_call[:guidance]
+    assert_equal "Showtime is off.", classifier.last_call[:instructions]
   end
 
-  def test_guidance_string
-    router_class = Class.new(ThresholdRouter) { guidance "  Plain text.\n" }
+  def test_instructions_string
+    router_class = Class.new(ThresholdRouter) { instructions "  Plain text.\n" }
     classifier = FakeClassifier.deciding(mode_name: "card")
     route(classifier, router: router_class)
-    assert_equal "Plain text.", classifier.last_call[:guidance]
+    assert_equal "Plain text.", classifier.last_call[:instructions]
   end
 
-  def test_blank_guidance_is_nil
-    router_class = Class.new(ThresholdRouter) { guidance { "" } }
+  def test_blank_instructions_are_nil
+    router_class = Class.new(ThresholdRouter) { instructions { "" } }
     classifier = FakeClassifier.deciding(mode_name: "card")
     route(classifier, router: router_class)
-    assert_nil classifier.last_call[:guidance]
+    assert_nil classifier.last_call[:instructions]
   end
 
   # History normalisation
