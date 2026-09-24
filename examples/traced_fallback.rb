@@ -32,7 +32,7 @@ module Examples
       mode ShowtimeAgent, as: :showtime
 
       fallback TutorAgent, below_confidence: 0.6
-      classify with: HesitantClassifier.new
+      classify_with HesitantClassifier.new
     end
 
     def self.run

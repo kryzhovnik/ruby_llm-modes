@@ -73,7 +73,7 @@ class ChatModeRouter < RubyLLM::Modes::Router
 
   history last: 6                           # optional; default: all given
   fallback TutorAgent, below_confidence: 0.6
-  classify with: :chat, model: "gemini-3.5-flash-lite"
+  classify_with :chat, model: "gemini-3.5-flash-lite"
   on_error { |error| Rails.error.report(error, handled: true) }   # optional
 end
 ```
@@ -97,15 +97,15 @@ Macros:
   `ArgumentError` at declaration time.
 - `fallback klass, below_confidence: nil` — required. The mode used when
   the classifier is ignored. `below_confidence` nil disables the threshold.
-- `classify with:, model: nil, **options` — `with:` is `:chat`, `:judge`, or
-  any object responding to `call` (§5). `classify model: "..."` alone
-  means `:chat`. `options` go to the built-in backend (`chat_factory:` for
-  `:chat`).
+- `classify_with backend, model: nil, **options` — required. `backend` is
+  `:chat`, `:judge`, or any object responding to `call` (§5). `options` go
+  to the built-in backend (`chat_factory:` for `:chat`; `provider:` and
+  `judge:` for `:judge`).
 - `on_error(&block)` — receives every classifier exception; default no-op.
 
 Inheritance: subclassing a router copies its declarations (as Agent does);
 changes in the subclass never touch the parent. `mode` appends to the
-inherited list; `fallback`, `classify`, `guidance`, `prompt`, `history`,
+inherited list; `fallback`, `classify_with`, `guidance`, `prompt`, `history`,
 `on_error` replace. `mode_description` is **not** inherited: every mode
 declares its own (`ApplicationModeAgent` has none and is not routable).
 `mode_name` is derived per class unless overridden on that class.
@@ -125,7 +125,7 @@ Validation happens in `new`, not at class definition (there is no reliable
 - no `fallback`; fallback not registered with `mode`; fallback has `if:`
 - duplicate registration names
 - a mode without a description
-- `classify with: :judge` when `RubyLLM.judge` is not defined and no `judge:` is given
+- `classify_with :judge` when `RubyLLM.judge` is not defined and no `judge:` is given
 - `prompt` declared together with `:judge`
 - the same class registered twice
 - a declared input not passed to `new` (`ArgumentError`, the router's own
@@ -367,10 +367,11 @@ shortcut.
 Where the spec was silent the simplest reading was taken. None of these
 add API.
 
-- **No `classify` declared** means `:chat` with RubyLLM's configured
-  default model (`RubyLLM.chat(model: nil)`).
-- **`classify` validation** also raises `DeclarationError` for an unknown
-  backend symbol and for a `with:` object that does not respond to `call`.
+- **No `classify_with` declared** is a `DeclarationError`; there is no
+  default backend. `classify_with :chat` without `model:` uses RubyLLM's
+  configured default model (`RubyLLM.chat(model: nil)`).
+- **`classify_with` validation** also raises `DeclarationError` for an
+  unknown backend symbol and for an object that does not respond to `call`.
   `:judge` is rejected when `RubyLLM.judge` is missing and no `judge:` is
   given; the `prompt` conflict is reported first.
 - **Input names** must not shadow a method the router instance already has

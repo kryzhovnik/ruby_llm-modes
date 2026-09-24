@@ -47,7 +47,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
 
     guidance { "The learner has a flashcard open on screen." if card }
     fallback TutorAgent, below_confidence: 0.6
-    classify with: :judge, model: "jev-latest", judge: FakeJudge.new
+    classify_with :judge, model: "jev-latest", judge: FakeJudge.new
   end
 
   def test_state_carries_guidance_conversation_and_the_latest_message
@@ -178,7 +178,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
     judge = FakeJudge.new
     RubyLLM.define_singleton_method(:judge) { |*args, **options| judge.call(*args, **options) }
 
-    router_class = Class.new(CardRouter) { classify with: :judge, model: "jev-latest" }
+    router_class = Class.new(CardRouter) { classify_with :judge, model: "jev-latest" }
     route = router_class.new(card: nil).call("add it")
     assert_equal ManageCardsAgent, route.mode_class
     assert_equal({ model: "jev-latest" }, judge.last_call[:options])

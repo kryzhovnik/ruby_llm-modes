@@ -72,7 +72,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
 
     guidance { "The learner has a flashcard open on screen." if card }
     fallback TutorAgent, below_confidence: 0.6
-    classify with: :chat, model: "gemini-3.5-flash-lite"
+    classify_with :chat, model: "gemini-3.5-flash-lite"
   end
 
   def test_call_sends_the_frame_as_system_and_the_message_as_user
@@ -106,7 +106,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
 
   def test_declared_chat_factory_option_reaches_the_backend
     factory = StubProvider::ChatFactory.new(mode: "card", confidence: 0.95)
-    router_class = Class.new(CardRouter) { classify with: :chat, model: "gemini-3.5-flash-lite", chat_factory: factory }
+    router_class = Class.new(CardRouter) { classify_with :chat, model: "gemini-3.5-flash-lite", chat_factory: factory }
 
     route = router_class.new(card: nil).call("add it")
     assert_equal "classifier", route.decided_by
@@ -116,7 +116,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
 
   def test_trace_records_the_resolved_default_model_when_none_is_declared
     factory = StubProvider::ChatFactory.new(mode: "card")
-    router_class = Class.new(CardRouter) { classify with: :chat, chat_factory: factory }
+    router_class = Class.new(CardRouter) { classify_with :chat, chat_factory: factory }
 
     route = router_class.new(card: nil).call("add it")
     assert_equal "chat", route.classifier[:with]
@@ -157,7 +157,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
   def test_prompt_block_replaces_the_frame_and_sees_locals_and_inputs
     factory = StubProvider::ChatFactory.new(mode: "card")
     router_class = Class.new(CardRouter) do
-      classify with: :chat, model: "gemini-3.5-flash-lite", chat_factory: factory
+      classify_with :chat, model: "gemini-3.5-flash-lite", chat_factory: factory
       prompt do
         "CUSTOM card=#{card.inspect} guidance=#{guidance} modes=#{modes.map(&:name).join(",")} " \
           "history=#{history.size} message=#{message}"
@@ -172,7 +172,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
   def test_prompt_template_renders_through_render_prompt_with_the_locals
     factory = StubProvider::ChatFactory.new(mode: "card")
     router_class = Class.new(CardRouter) do
-      classify with: :chat, model: "gemini-3.5-flash-lite", chat_factory: factory
+      classify_with :chat, model: "gemini-3.5-flash-lite", chat_factory: factory
       prompt "routers/card"
     end
 
@@ -191,7 +191,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
   def test_missing_template_is_a_classifier_failure
     factory = StubProvider::ChatFactory.new(mode: "card")
     router_class = Class.new(CardRouter) do
-      classify with: :chat, chat_factory: factory
+      classify_with :chat, chat_factory: factory
       prompt "routers/missing"
     end
 

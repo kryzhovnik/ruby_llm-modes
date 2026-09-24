@@ -18,7 +18,7 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
     guidance { card ? "A card is open." : "No card." }
     history last: 6
     fallback TutorAgent, below_confidence: 0.6
-    classify with: FakeClassifier.new
+    classify_with FakeClassifier.new
   end
 
   def user(showtime: true)
@@ -75,21 +75,22 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
     assert_match(/unknown input\(s\): extra/, error.message)
   end
 
-  def test_classify_model_alone_means_chat
+  def test_classify_with_chat_and_a_model
     router_class = Class.new(RubyLLM::Modes::Router) do
       mode TutorAgent
       fallback TutorAgent
-      classify model: "gemini-3.5-flash-lite"
+      classify_with :chat, model: "gemini-3.5-flash-lite"
     end
     assert_equal :chat, router_class.classifier_spec[:with]
     assert_instance_of RubyLLM::Modes::Classifiers::Chat, router_class.new.classifier
     assert_equal "gemini-3.5-flash-lite", router_class.new.classifier.model
   end
 
-  def test_no_classify_defaults_to_chat
+  def test_classify_with_chat_alone_uses_the_configured_model
     router_class = Class.new(RubyLLM::Modes::Router) do
       mode TutorAgent
       fallback TutorAgent
+      classify_with :chat
     end
     assert_instance_of RubyLLM::Modes::Classifiers::Chat, router_class.new.classifier
     assert_nil router_class.new.classifier.model
@@ -144,6 +145,13 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
     assert_declaration_error(/no fallback/) { mode TutorAgent }
   end
 
+  def test_no_classifier
+    assert_declaration_error(/no classifier declared/) do
+      mode TutorAgent
+      fallback TutorAgent
+    end
+  end
+
   def test_fallback_not_registered
     assert_declaration_error(/not registered/) do
       mode TutorAgent
@@ -196,7 +204,7 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
     assert_declaration_error(/RubyLLM.judge is not available in ruby_llm/) do
       mode TutorAgent
       fallback TutorAgent
-      classify with: :judge
+      classify_with :judge
     end
   end
 
@@ -204,7 +212,7 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
     router_class = Class.new(RubyLLM::Modes::Router) do
       mode TutorAgent
       fallback TutorAgent
-      classify with: :judge, model: "jev-latest", judge: ->(*, **) { }
+      classify_with :judge, model: "jev-latest", judge: ->(*, **) { }
     end
     classifier = router_class.new.classifier
     assert_instance_of RubyLLM::Modes::Classifiers::Judge, classifier
@@ -216,7 +224,7 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
     router_class = Class.new(RubyLLM::Modes::Router) do
       mode TutorAgent
       fallback TutorAgent
-      classify with: :judge
+      classify_with :judge
     end
     assert_instance_of RubyLLM::Modes::Classifiers::Judge, router_class.new.classifier
   ensure
@@ -244,7 +252,7 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
       mode TutorAgent
       fallback TutorAgent
       prompt { "custom" }
-      classify with: :judge
+      classify_with :judge
     end
   end
 
@@ -260,7 +268,7 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
     assert_declaration_error(/unknown classifier backend :magic/) do
       mode TutorAgent
       fallback TutorAgent
-      classify with: :magic
+      classify_with :magic
     end
   end
 
@@ -268,7 +276,7 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
     assert_declaration_error(/does not respond to call/) do
       mode TutorAgent
       fallback TutorAgent
-      classify with: Object.new
+      classify_with Object.new
     end
   end
 
@@ -276,7 +284,7 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
     assert_declaration_error(/does not respond to call/) do
       mode TutorAgent
       fallback TutorAgent
-      classify with: FakeClassifier
+      classify_with FakeClassifier
     end
   end
 
@@ -289,7 +297,7 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
     router_class = declaration do
       mode TutorAgent
       fallback TutorAgent
-      classify with: callable_class
+      classify_with callable_class
     end
     assert_equal callable_class, router_class.new.classifier
   end

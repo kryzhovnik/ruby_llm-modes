@@ -36,7 +36,7 @@ module Examples
       end
 
       fallback TutorAgent, below_confidence: 0.6
-      classify with: :chat, model: "gemini-3.5-flash-lite"
+      classify_with :chat, model: "gemini-3.5-flash-lite"
     end
 
     # A custom classifier that keeps the guidance it was given.

@@ -14,7 +14,7 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
     mode ManageCardsAgent, as: :card
 
     fallback TutorAgent, below_confidence: 0.6
-    classify with: FakeClassifier.deciding(mode_name: "card", confidence: 0.9, reason: "asked for a card")
+    classify_with FakeClassifier.deciding(mode_name: "card", confidence: 0.9, reason: "asked for a card")
   end
 
   class OpenRouter < ThresholdRouter
@@ -62,6 +62,7 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
     mode TutorAgent
     mode ShowtimeAgent, if: -> { flag }
     fallback TutorAgent
+    classify_with FakeClassifier.deciding(mode_name: "showtime")
   end
 
   def test_fallback_only_shortcut_skips_the_classifier
@@ -349,7 +350,7 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
   # Tracing
 
   def test_override_is_traced_for_the_object_actually_used
-    router_class = Class.new(ThresholdRouter) { classify model: "gemini-3.5-flash-lite" }
+    router_class = Class.new(ThresholdRouter) { classify_with :chat, model: "gemini-3.5-flash-lite" }
     route = route(FakeClassifier.deciding(mode_name: "card", confidence: 0.9), router: router_class)
     assert_equal({ with: "custom", model: nil }, route.classifier)
   end

@@ -14,7 +14,7 @@ module RubyLLM
     #     guidance { "The learner has a flashcard open." if card }
     #     history last: 6
     #     fallback TutorAgent, below_confidence: 0.6
-    #     classify with: :chat, model: "gemini-3.5-flash-lite"
+    #     classify_with :chat, model: "gemini-3.5-flash-lite"
     #   end
     #
     #   route = ChatModeRouter.new(user:, card:).call(message, history:)
@@ -104,12 +104,11 @@ module RubyLLM
         end
 
         # Picks the classifier: +:chat+, +:judge+, or any object responding
-        # to +call+ (see Classifiers::Chat for the contract). +classify model:
-        # "..."+ alone means +:chat+. Remaining options go to the built-in
-        # backend (+chat_factory:+ for +:chat+; +provider:+ and +judge:+ for
-        # +:judge+).
-        def classify(with: :chat, model: nil, **options)
-          @classifier_spec = { with: with, model: model, options: options }
+        # to +call+ (see Classifiers::Chat for the contract). Required.
+        # Remaining options go to the built-in backend (+chat_factory:+ for
+        # +:chat+; +provider:+ and +judge:+ for +:judge+).
+        def classify_with(backend, model: nil, **options)
+          @classifier_spec = { with: backend, model: model, options: options }
         end
 
         # Receives every exception a classifier raises, including
@@ -123,7 +122,7 @@ module RubyLLM
         def history_limit = @history_limit
         def fallback_class = @fallback_class
         def below_confidence = @below_confidence
-        def classifier_spec = @classifier_spec || { with: :chat, model: nil, options: {} }
+        def classifier_spec = @classifier_spec
         def error_handler = @error_handler
         def guidance_source = @guidance_source
         def prompt_source = @prompt_source
@@ -187,6 +186,8 @@ module RubyLLM
         end
 
         def validate_classifier!
+          raise DeclarationError, "#{name}: no classifier declared; add classify_with :chat, :judge, or an object" if classifier_spec.nil?
+
           backend = classifier_spec[:with]
           case backend
           when :chat

@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   prompt follows the chat's own and stays out of a Rails record's history,
   so the call site is `route.mode(chat:).complete`.
 - `RubyLLM::Modes::Router` with the declaration DSL (`inputs`, `mode`,
-  `guidance`, `prompt`, `history`, `fallback`, `classify`, `on_error`),
+  `guidance`, `prompt`, `history`, `fallback`, `classify_with`, `on_error`),
   inheritance that copies declarations, validation in `new`, availability
   via `if:`, history normalisation with `history last: n` / `history :all`,
   `call`, `force`, and the ordered outcome table.

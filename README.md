@@ -91,7 +91,7 @@ class ChatModeRouter < RubyLLM::Modes::Router
 
   history last: 6                           # optional; default: all given
   fallback TutorAgent, below_confidence: 0.6
-  classify with: :chat, model: "gemini-3.5-flash-lite"
+  classify_with :chat, model: "gemini-3.5-flash-lite"
   on_error { |error| Rails.error.report(error, handled: true) }   # optional
 end
 ```
@@ -103,12 +103,14 @@ end
 - `fallback` is required. It is the mode used whenever the classifier is
   ignored: it raised, named an unknown or unavailable mode, or scored below
   `below_confidence`. Pass no threshold to accept any confidence.
-- `classify` picks the backend; `classify model: "..."` alone means `:chat`.
+- `classify_with` is required: `:chat`, `:judge`, or a classifier object
+  (see [Plugging a custom classifier](#plugging-a-custom-classifier)).
 - Subclassing a router copies its declarations. `mode` appends to the
   inherited list; the other macros replace.
 
 The declaration is validated when a router is built with `new`, and every
-problem is a `RubyLLM::Modes::DeclarationError`: no fallback, a fallback
+problem is a `RubyLLM::Modes::DeclarationError`: no fallback, no
+classifier, a fallback
 that is not registered or has an `if:`, duplicate names, a mode without a
 description, the same class registered twice, or an unavailable backend.
 
@@ -205,7 +207,7 @@ Options:
   arguments and returning a `RubyLLM::Judgment`, for tests.
 
 `RubyLLM.judge` ships in RubyLLM after 2.0.0. On a release without it,
-`classify with: :judge` raises `DeclarationError` when the router is built,
+`classify_with :judge` raises `DeclarationError` when the router is built,
 unless `judge:` is given. `prompt` cannot be declared with this backend.
 
 ## Applying a mode
@@ -275,7 +277,7 @@ end
 
 class ChatModeRouter < RubyLLM::Modes::Router
   # ...
-  classify with: KeywordClassifier.new
+  classify_with KeywordClassifier.new
 end
 ```
 
