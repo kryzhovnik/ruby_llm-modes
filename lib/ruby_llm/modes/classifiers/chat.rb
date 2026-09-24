@@ -46,14 +46,14 @@ module RubyLLM
           { with: "chat", model: @resolved_model || model }
         end
 
-        # The built-in system prompt for +modes+ (pairs of name and
-        # description) and the normalised +history+. The latest +message+ is
+        # The built-in system prompt for +modes+ (Registration values) and
+        # the normalised +history+. The latest +message+ is
         # the user turn, so it is not repeated here; a custom +prompt+ may
         # still use it.
         def self.prompt(message:, history:, modes:, guidance: nil)
           sections = [ FRAME_HEAD ]
           sections << guidance unless guidance.nil? || guidance.empty?
-          sections << "Modes:\n#{modes.map { |name, description| "- #{name}: #{indent(description)}" }.join("\n")}"
+          sections << "Modes:\n#{modes.map { |mode| "- #{mode.name}: #{indent(mode.description)}" }.join("\n")}"
           sections << "Conversation:\n#{history.map { |entry| transcript_line(entry) }.join("\n")}" if history.any?
           sections << FRAME_TAIL
           sections.join("\n\n")
@@ -61,7 +61,7 @@ module RubyLLM
 
         # The selection schema: +mode+ is an enum of the available names.
         def self.schema_for(modes)
-          names = modes.map { |name, _description| name }
+          names = modes.map(&:name)
           Schematist::Schema.create do
             string :mode, enum: names
             number :confidence, minimum: 0, maximum: 1

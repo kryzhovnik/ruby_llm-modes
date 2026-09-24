@@ -256,7 +256,7 @@ A classifier is any object with this method:
 ```ruby
 class KeywordClassifier
   def call(message:, history:, modes:, guidance:, inputs:)
-    name = modes.map(&:first).find { |candidate| message.downcase.include?(candidate) }
+    name = modes.map(&:name).find { |candidate| message.downcase.include?(candidate) }
     RubyLLM::Modes::Decision.new(mode_name: name, confidence: name ? 1.0 : nil, reason: "keyword match")
   end
 end
@@ -267,9 +267,11 @@ class ChatModeRouter < RubyLLM::Modes::Router
 end
 ```
 
-- `modes` is `[[name, description], ...]` for the modes available on this
-  call; `history` is the normalised `[{ role:, content: }]`; `guidance`
-  is the resolved string or nil; `inputs` is the hash passed to `new`.
+- `modes` is the `Registration` values available on this call, the same
+  objects `router.modes` returns: each has `name`, `description`, and
+  `klass`, the agent class. `history` is the normalised
+  `[{ role:, content: }]`; `guidance` is the resolved string or nil;
+  `inputs` is the hash passed to `new`.
 - Return a `Decision`. `mode_name` is a String or nil, `confidence` is a
   number from 0 to 1 or nil for "not scored", `reason` and
   `probabilities` are optional. Anything else is a contract violation and

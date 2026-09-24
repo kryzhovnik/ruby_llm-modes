@@ -24,17 +24,6 @@ module RubyLLM
     # list; the other macros replace. Declarations are validated when a
     # router is built with +new+, not when the class is defined.
     class Router
-      # One +mode+ declaration, resolved. +condition+ is the +if:+ lambda or nil.
-      Registration = Data.define(:klass, :name, :description, :condition) do
-        def available_on?(router)
-          condition.nil? || !!router.instance_exec(&condition)
-        end
-
-        def to_pair
-          [ name, description ]
-        end
-      end
-
       BACKENDS = %i[chat judge].freeze
       private_constant :BACKENDS
 
@@ -227,7 +216,7 @@ module RubyLLM
       # The declared classifier backend for this router instance.
       attr_reader :classifier
 
-      # The registrations available for this call, in declaration order.
+      # The Registration values available for this call, in declaration order.
       def modes
         self.class.registrations.select { |registration| registration.available_on?(self) }
       end
@@ -243,7 +232,7 @@ module RubyLLM
         request = {
           message: message,
           history: normalize_history(history),
-          modes: available.map(&:to_pair),
+          modes: available,
           guidance: resolved_guidance,
           inputs: inputs
         }

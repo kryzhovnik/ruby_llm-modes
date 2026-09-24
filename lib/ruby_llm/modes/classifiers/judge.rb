@@ -61,10 +61,10 @@ module RubyLLM
           state
         end
 
-        # One choice question whose options are the modes (pairs of name
-        # and description).
+        # One choice question whose options are the modes (Registration
+        # values), name to description.
         def self.questions(modes)
-          { mode: { type: :choice, instructions: QUESTION, options: modes.to_h { |name, description| [ name.to_s, description.to_s ] } } }
+          { mode: { type: :choice, instructions: QUESTION, options: modes.to_h { |mode| [ mode.name.to_s, mode.description.to_s ] } } }
         end
 
         def self.transcript_entry(entry)

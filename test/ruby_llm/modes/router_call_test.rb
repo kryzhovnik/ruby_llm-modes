@@ -258,7 +258,9 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
     call = classifier.last_call
     assert_equal "add it", call[:message]
     assert_equal [], call[:history]
-    assert_equal [ [ "tutor", TutorAgent.mode_description ], [ "card", ManageCardsAgent.mode_description ] ], call[:modes]
+    assert_equal [ TutorAgent, ManageCardsAgent ], call[:modes].map(&:klass)
+    assert_equal %w[tutor card], call[:modes].map(&:name)
+    assert_equal [ TutorAgent.mode_description, ManageCardsAgent.mode_description ], call[:modes].map(&:description)
     assert_nil call[:guidance]
     assert_equal({ showtime_enabled: false }, call[:inputs])
   end

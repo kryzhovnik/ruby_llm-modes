@@ -6,8 +6,8 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
   Judge = RubyLLM::Modes::Classifiers::Judge
 
   MODES = [
-    [ "tutor", "Explains words and grammar." ],
-    [ "card", "Creates, edits, or deletes flashcards." ]
+    RubyLLM::Modes::Registration.new(klass: nil, name: "tutor", description: "Explains words and grammar.", condition: nil),
+    RubyLLM::Modes::Registration.new(klass: nil, name: "card", description: "Creates, edits, or deletes flashcards.", condition: nil)
   ].freeze
 
   HISTORY = [

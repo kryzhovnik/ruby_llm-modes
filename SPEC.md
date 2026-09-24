@@ -157,7 +157,8 @@ Decision = Data.define(:mode_name, :confidence, :reason, :probabilities)
 # raised" path (fallback route, error set), never compares it.
 
 classifier.call(message:, history:, modes:, guidance:, inputs:) # → Decision
-# modes: [[name, description], ...] available for this call
+# modes: the Registration values available for this call (name, description,
+# klass, condition), the same objects Router#modes returns
 ```
 
 Built-in backends:
@@ -398,8 +399,9 @@ add API.
   `"foo/agent"`) and returns nil for an anonymous class, which the router
   reports as "no registration name" unless `as:` is given.
 - **`guidance`**: strings are stripped; a blank result is nil.
-- **`Router#modes`** returns `Registration` values (`klass`, `name`,
-  `description`, `condition`), evaluated on every call.
+- **`Router#modes`** returns `RubyLLM::Modes::Registration` values (`klass`,
+  `name`, `description`, `condition`), evaluated on every call; the
+  classifier receives the same objects as `modes:`.
 - **`Router.validate!`** is public so an app can check a declaration at boot
   without building an instance.
 - **`Router#classifier`** and **`Router#inputs`** are readable on the

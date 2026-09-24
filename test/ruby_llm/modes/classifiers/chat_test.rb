@@ -7,8 +7,8 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
   Chat = RubyLLM::Modes::Classifiers::Chat
 
   MODES = [
-    [ "tutor", "Explains words and grammar, corrects the learner, keeps the\nconversation going. A bare word or phrase is a request to explain it." ],
-    [ "card", "Creates, edits, or deletes flashcards. Only when the learner asks\nfor it, never inferred from a word alone." ]
+    RubyLLM::Modes::Registration.new(klass: nil, name: "tutor", condition: nil, description: "Explains words and grammar, corrects the learner, keeps the\nconversation going. A bare word or phrase is a request to explain it."),
+    RubyLLM::Modes::Registration.new(klass: nil, name: "card", condition: nil, description: "Creates, edits, or deletes flashcards. Only when the learner asks\nfor it, never inferred from a word alone.")
   ].freeze
 
   HISTORY = [
@@ -82,7 +82,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
     request = factory.last_request
     assert_equal [ :system, :user ], request[:messages].map(&:role)
     assert_equal "add it to my cards", request[:messages].last.content
-    assert_equal Chat.prompt(message: "add it to my cards", history: HISTORY, modes: [ [ "tutor", TutorAgent.mode_description ], [ "card", ManageCardsAgent.mode_description ] ]), factory.system_prompt
+    assert_equal Chat.prompt(message: "add it to my cards", history: HISTORY, modes: CardRouter.new(card: nil).modes), factory.system_prompt
     assert_equal %w[tutor card], request[:schema].dig(:schema, :properties, :mode, :enum)
 
     assert_equal "classifier", route.decided_by
@@ -159,7 +159,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
     router_class = Class.new(CardRouter) do
       classify with: :chat, model: "gemini-3.5-flash-lite", chat_factory: factory
       prompt do
-        "CUSTOM card=#{card.inspect} guidance=#{guidance} modes=#{modes.map(&:first).join(",")} " \
+        "CUSTOM card=#{card.inspect} guidance=#{guidance} modes=#{modes.map(&:name).join(",")} " \
           "history=#{history.size} message=#{message}"
       end
     end
@@ -178,7 +178,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
 
     Dir.mktmpdir do |dir|
       FileUtils.mkdir_p(File.join(dir, "routers"))
-      File.write(File.join(dir, "routers/card.txt.erb"), "TEMPLATE <%= modes.map(&:first).join(',') %> <%= guidance %> <%= history.size %> <%= message %> <%= card %>")
+      File.write(File.join(dir, "routers/card.txt.erb"), "TEMPLATE <%= modes.map(&:name).join(',') %> <%= guidance %> <%= history.size %> <%= message %> <%= card %>")
       RubyLLM::Prompt.roots << dir
 
       router_class.new(card: "c1").call("add it", history: HISTORY)

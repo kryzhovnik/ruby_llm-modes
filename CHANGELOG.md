@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   inheritance that copies declarations, validation in `new`, availability
   via `if:`, history normalisation, `call`, `force`, and the ordered
   outcome table.
+- `Registration` value objects: what `Router#modes` returns and what a
+  classifier receives as `modes:`.
 - `Decision` and `Route` value objects; `Route#decided_by` (`"caller"`,
   `"classifier"`, `"fallback"`), `Route#duration_ms`, and `to_h` on both with
   the field names as string keys, for logs.
