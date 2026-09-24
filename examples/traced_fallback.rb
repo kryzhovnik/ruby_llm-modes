@@ -43,8 +43,8 @@ end
 
 if __FILE__ == $PROGRAM_NAME
   route = Examples::TracedFallback.run
-  puts "mode:   #{route.mode}"
-  puts "level:  #{route.level}"
-  puts "reason: #{route.reason}"
-  puts "to_h:   #{route.to_h.inspect}"
+  puts "mode:       #{route.mode}"
+  puts "decided_by: #{route.decided_by}"
+  puts "reason:     #{route.reason}"
+  puts "to_h:       #{route.to_h.inspect}"
 end

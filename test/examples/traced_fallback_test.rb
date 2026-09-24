@@ -13,7 +13,7 @@ class Examples::TracedFallbackTest < Minitest::Test
   def test_falls_back_to_the_tutor_below_the_threshold
     assert_equal Example::TutorAgent, @route.mode
     assert_equal "tutor", @route.mode_name
-    assert_equal "fallback", @route.level
+    assert_equal "fallback", @route.decided_by
     assert_equal "Below confidence threshold", @route.reason
   end
 
@@ -27,7 +27,7 @@ class Examples::TracedFallbackTest < Minitest::Test
   def test_to_h_carries_the_route_and_the_decision
     hash = @route.to_h
     assert_equal "tutor", hash["mode"]
-    assert_equal "fallback", hash["level"]
+    assert_equal "fallback", hash["decided_by"]
     assert_equal "Below confidence threshold", hash["reason"]
     assert_equal({ "with" => "custom", "model" => nil }, hash["classifier"])
     assert_equal({ "mode" => "showtime", "confidence" => 0.42, "reason" => "might be asking for a session" }, hash["decision"])

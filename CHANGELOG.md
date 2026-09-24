@@ -19,7 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   inheritance that copies declarations, validation in `new`, availability
   via `if:`, history normalisation, `call`, `explicit`, and the ordered
   outcome table.
-- `Decision` and `Route` value objects; `Route#to_h` for logs.
+- `Decision` and `Route` value objects; `Route#decided_by` (`"caller"`,
+  `"classifier"`, `"fallback"`) and `Route#to_h` for logs.
 - The `:chat` classifier backend with the built-in routing frame, the
   selection schema, `prompt` overrides (template name or block), and
   `chat_factory:`.

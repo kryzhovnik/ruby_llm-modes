@@ -16,7 +16,7 @@ agent = route.mode.new(chat:, user:, card:)
 agent.complete
 
 logger.info route.to_h
-# {"mode"=>"tutor", "level"=>"fallback", "reason"=>"Below confidence threshold",
+# {"mode"=>"tutor", "decided_by"=>"fallback", "reason"=>"Below confidence threshold",
 #  "duration_ms"=>812, "classifier"=>{"with"=>"chat", "model"=>"gemini-3.5-flash-lite"},
 #  "decision"=>{"mode"=>"showtime", "confidence"=>0.42, "reason"=>"..."}}
 ```
@@ -127,16 +127,16 @@ objects, Rails message records responding to `to_llm`, or plain strings.
 The router normalises them before any backend sees them and keeps only the
 last `history n` entries.
 
-A `Route` has `mode` (the class), `mode_name`, `level` (`"explicit"`,
+A `Route` has `mode` (the class), `mode_name`, `decided_by` (`"caller"`,
 `"classifier"`, or `"fallback"`), `reason`, the classifier's `decision`,
 `routing_ms`, a `classifier` trace (`{ with:, model: }`), and `error`.
 `to_h` gives string keys for logs and drops the class and the error.
 
 The route is decided by the first rule that applies:
 
-| Situation                                        | level          | reason                         |
+| Situation                                        | decided_by     | reason                         |
 |--------------------------------------------------|----------------|--------------------------------|
-| `explicit(name)`                                 | `"explicit"`   | `"Explicit mode requested"`    |
+| `explicit(name)`                                 | `"caller"`     | `"Mode requested by caller"`   |
 | only the fallback is available                   | `"fallback"`   | `"No other mode available"`    |
 | classifier raised, or violated the contract      | `"fallback"`   | `"Classifier failed: <class>"` |
 | decision names an unknown or unavailable mode    | `"fallback"`   | `"Unknown mode <name>"`        |

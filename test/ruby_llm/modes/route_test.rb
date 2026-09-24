@@ -9,7 +9,7 @@ class RubyLLM::Modes::RouteTest < Minitest::Test
   class TutorAgent < RubyLLM::ModeAgent; end
 
   def test_optional_members_default_to_nil
-    route = Route.new(mode: TutorAgent, mode_name: "tutor", level: "explicit", reason: "Explicit mode requested")
+    route = Route.new(mode: TutorAgent, mode_name: "tutor", decided_by: "caller", reason: "Mode requested by caller")
     assert_nil route.decision
     assert_nil route.routing_ms
     assert_nil route.classifier
@@ -19,7 +19,7 @@ class RubyLLM::Modes::RouteTest < Minitest::Test
   def test_to_h_drops_mode_class_and_error_and_uses_string_keys
     decision = Decision.new(mode_name: "showtime", confidence: 0.42, reason: "looks like a show")
     route = Route.new(
-      mode: TutorAgent, mode_name: "tutor", level: "fallback", reason: "Below confidence threshold",
+      mode: TutorAgent, mode_name: "tutor", decided_by: "fallback", reason: "Below confidence threshold",
       decision: decision, routing_ms: 812, classifier: { with: "chat", model: "gemini-3.5-flash-lite" },
       error: RuntimeError.new("boom")
     )
@@ -27,7 +27,7 @@ class RubyLLM::Modes::RouteTest < Minitest::Test
     assert_equal(
       {
         "mode" => "tutor",
-        "level" => "fallback",
+        "decided_by" => "fallback",
         "reason" => "Below confidence threshold",
         "duration_ms" => 812,
         "classifier" => { "with" => "chat", "model" => "gemini-3.5-flash-lite" },
@@ -38,9 +38,9 @@ class RubyLLM::Modes::RouteTest < Minitest::Test
   end
 
   def test_to_h_keeps_nil_slots
-    route = Route.new(mode: TutorAgent, mode_name: "tutor", level: "explicit", reason: "Explicit mode requested")
+    route = Route.new(mode: TutorAgent, mode_name: "tutor", decided_by: "caller", reason: "Mode requested by caller")
     assert_equal(
-      { "mode" => "tutor", "level" => "explicit", "reason" => "Explicit mode requested",
+      { "mode" => "tutor", "decided_by" => "caller", "reason" => "Mode requested by caller",
         "duration_ms" => nil, "classifier" => nil, "decision" => nil },
       route.to_h
     )

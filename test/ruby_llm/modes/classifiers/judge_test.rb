@@ -89,7 +89,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
     assert_equal ManageCardsAgent.mode_description, call[:questions][:mode][:options]["card"]
     assert_equal({ model: "jev-latest" }, call[:options])
 
-    assert_equal "classifier", route.level
+    assert_equal "classifier", route.decided_by
     assert_equal ManageCardsAgent, route.mode
     assert_nil route.reason
     assert_equal 0.8, route.decision.confidence
@@ -99,7 +99,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
 
   def test_declared_judge_option_reaches_the_backend
     route = CardRouter.new(card: nil).call("add it")
-    assert_equal "classifier", route.level
+    assert_equal "classifier", route.decided_by
     assert_equal ManageCardsAgent, route.mode
     assert_equal({ "mode" => "card", "confidence" => 0.8, "reason" => nil, "probabilities" => { "tutor" => 0.1, "card" => 0.9 } }, route.decision.to_h)
   end
@@ -114,7 +114,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
   def test_low_concentration_falls_back
     judge = FakeJudge.new(confidence: 0.3, probabilities: { "tutor" => 0.45, "card" => 0.55 })
     route = CardRouter.new(card: nil).call("hmm", classifier: Judge.new(judge: judge))
-    assert_equal "fallback", route.level
+    assert_equal "fallback", route.decided_by
     assert_equal "Below confidence threshold", route.reason
     assert_equal "card", route.decision.mode_name
   end
@@ -152,7 +152,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
   def test_a_non_choice_answer_is_a_contract_error
     judge = FakeJudge.new(answer: 0.9)
     route = CardRouter.new(card: nil).call("add it", classifier: Judge.new(judge: judge))
-    assert_equal "fallback", route.level
+    assert_equal "fallback", route.decided_by
     assert_instance_of RubyLLM::Modes::ContractError, route.error
   end
 

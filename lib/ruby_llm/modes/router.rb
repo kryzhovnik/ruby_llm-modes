@@ -265,7 +265,7 @@ module RubyLLM
         registration = modes.find { |candidate| candidate.name == name.to_s }
         raise UnknownMode.new("Unknown mode #{name}", receiver: self, key: name) unless registration
 
-        Route.new(mode: registration.klass, mode_name: registration.name, level: "explicit", reason: "Explicit mode requested")
+        Route.new(mode: registration.klass, mode_name: registration.name, decided_by: "caller", reason: "Mode requested by caller")
       end
 
       private
@@ -281,12 +281,12 @@ module RubyLLM
           return fallback_route("Below confidence threshold", **common) if decision.confidence < threshold
         end
 
-        Route.new(mode: registration.klass, mode_name: registration.name, level: "classifier", reason: decision.reason, **common)
+        Route.new(mode: registration.klass, mode_name: registration.name, decided_by: "classifier", reason: decision.reason, **common)
       end
 
       def fallback_route(reason, **attributes)
         registration = self.class.registrations.find { |candidate| candidate.klass == self.class.fallback_class }
-        Route.new(mode: registration.klass, mode_name: registration.name, level: "fallback", reason: reason, **attributes)
+        Route.new(mode: registration.klass, mode_name: registration.name, decided_by: "fallback", reason: reason, **attributes)
       end
 
       def run_classifier(backend, request)

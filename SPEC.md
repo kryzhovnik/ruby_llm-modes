@@ -136,7 +136,7 @@ Availability invariants:
 - `explicit(name)` respects `if:`; an unavailable or unknown name raises
   `RubyLLM::Modes::UnknownMode` (a `KeyError`).
 - If the fallback is the only available mode, the classifier is not called;
-  the route is `level: "fallback"`, `reason: "No other mode available"`.
+  the route is `decided_by: "fallback"`, `reason: "No other mode available"`.
 - Every mode a Route returns is available for that call.
 
 `history:` entries are `{ role:, content: }` hashes, `RubyLLM::Message`s, or
@@ -229,18 +229,18 @@ Text sources, lightest to fullest:
 ## 7. Route
 
 ```ruby
-Route = Data.define(:mode, :mode_name, :level, :reason, :decision,
+Route = Data.define(:mode, :mode_name, :decided_by, :reason, :decision,
                     :routing_ms, :classifier, :error)
-# mode: class; mode_name: registration name; level: "explicit" | "classifier" | "fallback"
+# mode: class; mode_name: registration name; decided_by: "caller" | "classifier" | "fallback"
 # decision: Decision or nil (explicit); classifier: { with:, model: } or nil
 # error: Exception or nil, never serialised
 ```
 
 Checks run in this order; the first that fails names the reason.
 
-| # | Situation                                        | level          | reason                        | decision |
+| # | Situation                                        | decided_by     | reason                        | decision |
 |---|--------------------------------------------------|----------------|-------------------------------|----------|
-| 0 | `explicit(name)`                                 | `"explicit"`   | `"Explicit mode requested"`   | nil      |
+| 0 | `explicit(name)`                                 | `"caller"`     | `"Mode requested by caller"`  | nil      |
 | 1 | only the fallback is available                   | `"fallback"`   | `"No other mode available"`   | nil      |
 | 2 | classifier raised, or violated the contract      | `"fallback"`   | `"Classifier failed: <class>"`| nil, `error` set |
 | 3 | decision names an unknown or unavailable mode    | `"fallback"`   | `"Unknown mode <name>"`       | kept     |
@@ -255,7 +255,7 @@ known, available mode is accepted whatever its confidence.
 route. `to_h` gives string keys and drops `mode` (class) and `error`:
 
 ```ruby
-{ "mode" => "tutor", "level" => "fallback", "reason" => "Below confidence threshold",
+{ "mode" => "tutor", "decided_by" => "fallback", "reason" => "Below confidence threshold",
   "duration_ms" => 812, "classifier" => { "with" => "chat", "model" => "gemini-3.5-flash-lite" },
   "decision" => { "mode" => "showtime", "confidence" => 0.42, "reason" => "..." } }
 ```
@@ -328,7 +328,7 @@ fake `:chat` backend:
    schema nil, thinking `{ effort: :low }`.
 3. **Custom classifier with a traced fallback.** A classifier returning
    `showtime` at 0.42 under a 0.6 threshold; assert `route.mode ==
-   TutorAgent`, `level == "fallback"`, `decision.mode_name == "showtime"`,
+   TutorAgent`, `decided_by == "fallback"`, `decision.mode_name == "showtime"`,
    `decision.confidence == 0.42`, and `to_h` carries both.
 
 Plus unit tests for every row of the §7 table, every `DeclarationError`,
