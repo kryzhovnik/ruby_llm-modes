@@ -13,7 +13,9 @@ module RubyLLM
     class UnknownMode < KeyError; end
 
     # A classifier returned something outside the classifier contract: not a
-    # Decision, or a confidence that is NaN or outside 0..1.
+    # Decision, a mode_name or reason that is not a String, a confidence
+    # that is NaN or outside 0..1, probabilities that are not a Hash of
+    # numbers, or a chat response that is not a JSON object.
     class ContractError < Error; end
   end
 end

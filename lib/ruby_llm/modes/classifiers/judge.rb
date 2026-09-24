@@ -13,8 +13,8 @@ module RubyLLM
       # scale from the chat backend's. There is no free text, so +reason+
       # is always nil.
       #
-      # +model+ and +provider+ are passed to RubyLLM.judge only when given,
-      # so RubyLLM's own defaults apply otherwise. +judge:+ replaces
+      # +model+ is passed to RubyLLM.judge as given (nil selects RubyLLM's
+      # default judgment model); +provider+ only when given. +judge:+ replaces
       # RubyLLM.judge; it is called with the same arguments and must return
       # a Judgment.
       #

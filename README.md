@@ -21,7 +21,7 @@ logger.info route.to_h
 ```
 
 Plain Ruby on top of [RubyLLM](https://rubyllm.com) 2.x. No Rails hooks,
-no registry, no prompt files.
+no registry, no prompt files of its own.
 
 ## Installation
 

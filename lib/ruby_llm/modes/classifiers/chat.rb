@@ -5,8 +5,8 @@ module RubyLLM
     module Classifiers
       # The +:chat+ backend: one structured-output turn on a RubyLLM chat.
       #
-      # The system prompt is the frame of the spec (Chat.prompt): the
-      # router's instructions, the modes, and the conversation.
+      # The system prompt is the built-in frame (Chat.prompt): the router's
+      # instructions, the modes, and the conversation.
       # +chat_factory:+ replaces RubyLLM.chat; it is called with +model:+
       # and must return a chat. +confidence+ is the model's self-report.
       #
