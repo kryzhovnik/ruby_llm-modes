@@ -289,20 +289,29 @@ declared. Instructions replace the system message unless declared with
 (§2), so neither `append: true` nor `persist_instructions: false` appears
 at the call site.
 
-Verified on a real `RubyLLM::Chat` (rc4, no provider calls): after two
-modes with `append: true` the chat holds the base prompt **and both** mode
-instructions; `thinking effort:` from the first mode survives into the
-second; `with_tools(nil)` and `with_schema(nil)` do clear;
-`with_instructions(base)` without `append:` drops every appended
-instruction and keeps only the base; there is no way to unset thinking
-(`with_thinking(false)` raises for models without an "off" control).
+The primary case is one chat object per turn, and it needs nothing else.
+A Rails chat record loaded for the turn (`Chat.find` in the job) builds a
+fresh `RubyLLM::Chat` in `to_llm`; only the stored messages carry over. A
+`RubyLLM.chat` built for the turn is fresh by definition.
 
-Consequences the app must handle:
+The secondary case is one `RubyLLM::Chat` object reused across turns: a
+script, a console session, or a job running two modes back to back on one
+record instance. Verified on a real `RubyLLM::Chat` (2.0.0, no provider
+calls): after two modes with `append: true` the chat holds the base prompt
+**and both** mode instructions; `thinking effort:` from the first mode
+survives into the second; `with_tools(nil)` and `with_schema(nil)` do
+clear; `with_instructions(base)` without `append:` drops every appended
+instruction and keeps only the base. `@thinking` has no public way back to
+nil (provider default): `with_thinking(false)` resolves per model and
+raises `ArgumentError` for a model whose registry entry has no off control
+(gemini-3.5-flash-lite, gpt-5), while Anthropic and Gemini 2.5 models
+disable cleanly.
 
-- Apply a mode to a chat whose per-turn configuration is fresh. A Rails
-  record loaded for the turn is fresh (Duck loads `Chat.find` in the job).
-- A long-lived in-memory chat must be restored to its base configuration
-  before the next mode:
+The app has two ways to start the next turn clean:
+
+- `route.mode` with no `chat:` and copy the user and assistant messages
+  to keep.
+- Restore the same object to its base configuration before the next mode:
 
   ```ruby
   chat.with_instructions(base_prompt)   # replaces: base stays, mode instructions go
@@ -310,9 +319,10 @@ Consequences the app must handle:
       .with_schema(nil)
   ```
 
-  and every mode must declare `thinking` explicitly (it replaces; nothing
-  can unset it), or the app sets a baseline `with_thinking(...)` in the
-  same reset.
+  plus `with_thinking(false)` where the model has an off control, or a
+  baseline `with_thinking(...)` for every mode to start from. Modes are not
+  required to declare `thinking`; an undeclared mode inherits whatever the
+  chat has.
 
 If real integrations need more than this reset, this section is the first
 thing to revisit (a `Route#apply` with reset semantics), not the router.

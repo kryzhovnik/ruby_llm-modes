@@ -1,13 +1,16 @@
 # frozen_string_literal: true
 
 # Acceptance example 2: a tool mode followed by a clarification mode on
-# one long-lived chat.
+# one RubyLLM::Chat object reused for both turns.
 #
-# The chat starts with base instructions. ManageCardsAgent adds tools, a
-# schema, and high-effort thinking. Before ClarifyAgent takes the next
-# turn the app applies the reset of SPEC.md §8: base instructions back
-# (which drops the appended mode instructions), tools and schema cleared.
-# ClarifyAgent then adds its own instructions and low-effort thinking.
+# This is the secondary case of SPEC.md §8. A Rails app loads the chat
+# record per turn and needs no reset; a script or a job that runs two
+# modes on one chat object does. The chat starts with base instructions.
+# ManageCardsAgent adds tools, a schema, and high-effort thinking. Before
+# ClarifyAgent takes the next turn the app applies the reset: base
+# instructions back (which drops the appended mode instructions), tools
+# and schema cleared. ClarifyAgent then adds its own instructions and
+# low-effort thinking.
 #
 # Only the provider request is stubbed; the chat is a real RubyLLM::Chat.
 #
@@ -70,7 +73,7 @@ module Examples
       { after_manage_cards:, after_clarify: }
     end
 
-    # The reset of SPEC.md §8 for a long-lived in-memory chat.
+    # The reset of SPEC.md §8 for a chat object reused across turns.
     def self.reset(chat)
       chat.with_instructions(BASE_INSTRUCTIONS)
           .with_tools(nil)

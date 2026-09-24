@@ -136,7 +136,7 @@ A `Route` has `mode_class`, `mode_name`, `decided_by` (`"caller"`,
 `"classifier"`, or `"fallback"`), `reason`, the classifier's `decision`,
 `duration_ms`, a `classifier` trace (`{ with:, model: }`), `error`, and the
 router's `inputs`. `route.mode(chat:)` is the mode as an agent on that
-chat (see [Applying a mode](#applying-a-mode-and-the-reset-rule)). `to_h`
+chat (see [Applying a mode](#applying-a-mode)). `to_h`
 is the same fields with string keys, for logs, minus the class, the error,
 and the inputs; `Decision#to_h` follows the same rule.
 
@@ -206,7 +206,7 @@ Options:
 `classify with: :judge` raises `DeclarationError` when the router is built,
 unless `judge:` is given. `prompt` cannot be declared with this backend.
 
-## Applying a mode and the reset rule
+## Applying a mode
 
 The router never touches the chat. `route.mode(chat:)` does: it is the
 mode's `Agent.new(chat:, inputs: route.inputs)`, so it configures the chat
@@ -225,26 +225,36 @@ Run the turn through the agent, not the chat: `agent.complete` is
 `chat.complete` inside the agent's `rescue_from` handlers, while
 `chat.complete` skips them.
 
-Agent's constructor **adds** configuration to an existing chat; it does
-not reset it. Tools, schema, and thinking are set only when the mode
-declares them, and mode instructions append to the chat's system prompt
-(see [Modes](#modes)). So apply a mode to a chat whose per-turn
-configuration is fresh. A Rails record loaded for the turn is fresh. A
-long-lived in-memory chat must be restored to its base configuration
-before the next mode:
+Agent's constructor **adds** configuration to the chat: mode instructions
+append to the chat's system prompt (see [Modes](#modes)); tools, schema,
+and thinking are set only when the mode declares them. The usual setup
+gives each turn its own chat object, so this is all there is to it: a
+Rails chat record loaded for the turn builds a fresh `RubyLLM::Chat` from
+its stored messages, and a `RubyLLM.chat` created for the turn is fresh by
+definition. Nothing from the previous mode carries over but the messages.
 
-```ruby
-chat.with_instructions(base_prompt)   # base stays, appended mode instructions go
-    .with_tools(nil)
-    .with_schema(nil)
-```
+### Reusing one chat object for several turns
 
-Or skip the shared chat: `route.mode` with no `chat:` builds a fresh one
-through Agent, and the app copies the messages it wants to keep.
+A script, a console session, or a job that runs two modes back to back on
+one `RubyLLM::Chat` keeps the previous mode's configuration: its appended
+instructions, tools, schema, and thinking. Two ways to start the next turn
+clean:
 
-Nothing can unset thinking once a mode enabled it, so every mode must
-declare `thinking` explicitly, or the app sets a baseline
-`with_thinking(...)` in the same reset.
+- `route.mode` with no `chat:` builds a fresh chat through Agent; the app
+  copies over the user and assistant messages it wants to keep.
+- Restore the same object to its base configuration before the next mode:
+
+  ```ruby
+  chat.with_instructions(base_prompt)   # base stays, appended mode instructions go
+      .with_tools(nil)
+      .with_schema(nil)
+  ```
+
+  Thinking enabled by a mode stays on until the next `with_thinking`.
+  Add `with_thinking(false)` to the reset when the model has an off
+  control in RubyLLM's registry (Anthropic and Gemini 2.5 models do;
+  `with_thinking(false)` raises for a model without one), or set the
+  baseline `with_thinking(...)` you want every mode to start from.
 
 `examples/tool_mode_to_clarification.rb` shows the reset on a real
 `RubyLLM::Chat`.
