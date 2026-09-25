@@ -1,30 +1,52 @@
 # ruby_llm-modes
 
-One chat, one configuration per turn: a small classifier picks the mode before each answer.
+One chat, many modes: a cheap classifier picks the configuration of each turn before the answer.
 
-A **mode** is the configuration of one turn: instructions, tools, model, thinking. Neighbouring messages in one chat can want very different ones, and putting every tool and instruction into one system prompt makes every turn pay for all of them. Instead the conversation stays one chat with one history; before each answer a small classifier reads the latest message and a window of history, the router picks a mode, and your app applies it to the chat. The model that answers never sees another mode's tools or instructions, and the decision is a value you can log and test: which mode, why, and what the classifier actually said.
+Two neighbouring messages in one chat can need very different turns. In the first, the user sends a single word and wants it explained right away; every second of delay counts. In the second, the user asks for a five-step job that needs tools, thinking, and a few extra seconds. The usual answer is one long system prompt, every tool declared up front, and a model strong enough for all of it. Then every turn pays for everything: the tool descriptions are sent with every request, one model and one effort level serve both the lookup and the job, the more similar tools the model sees the more often it picks the wrong one, and the choice of what to do now is made inside the model, where you cannot see or test it.
+
+A **mode** is a named configuration of one turn: instructions, tools, model, thinking. All modes share one history. Before each answer a small classifier reads the latest message and a window of history and answers one cheap question: *which mode should take this turn?* The router picks that mode, and your app applies it to the chat and runs the turn. The model that answers never sees another mode's tools or instructions. The decision is a value you can log and test: which mode, why, and what the classifier actually said. A judgment model or a small chat model answers the question in a fraction of a second, for less than the full toolset costs on every turn.
 
 ```ruby
-route = SupportRouter.new(customer:, order:).call(message.content, history:)
+class HelpAgent < RubyLLM::ModeAgent
+  mode_description "Answers questions about delivery, payment, sizes, and store policy."
+
+  instructions "You are a friendly support assistant for an online store. Keep answers short."
+  thinking effort: :low
+end
+
+class ReturnsAgent < RubyLLM::ModeAgent
+  mode_description "Returns, exchanges, and refunds for an order the customer already has."
+
+  instructions "Handle the return or exchange with the tools. Check the policy before promising anything."
+  tools FindOrder, CreateReturn
+  thinking effort: :high
+end
+
+class SupportRouter < RubyLLM::Modes::Router
+  mode HelpAgent
+  mode ReturnsAgent
+  fallback HelpAgent, below_confidence: 0.6
+  classify_with :judge
+end
+
+route = SupportRouter.new.call("The jacket is too small, I want to send it back", history: chat.messages)
 route.mode(chat:).complete
 
 route.to_h
 # {
-#   "mode_name" => "help",
-#   "decided_by" => "fallback",
-#   "reason" => "Below confidence threshold",
+#   "mode_name" => "returns",
+#   "decided_by" => "classifier",
+#   "reason" => nil,
 #   "decision" => {
 #     "mode_name" => "returns",
-#     "confidence" => 0.42,
+#     "confidence" => 0.88,
 #     "reason" => nil,
-#     "probabilities" => { "help" => 0.31, "returns" => 0.45, "orders" => 0.24 }
+#     "probabilities" => { "help" => 0.06, "returns" => 0.94 }
 #   },
-#   "duration_ms" => 812,
+#   "duration_ms" => 351,
 #   "classifier" => { "with" => "judge", "model" => "jev-1.13.0" }
 # }
 ```
-
-Plain Ruby on top of [RubyLLM](https://rubyllm.com) 2.x. No Rails hooks, no registry, no built-in prompt files.
 
 ## Installation
 
@@ -32,7 +54,7 @@ Plain Ruby on top of [RubyLLM](https://rubyllm.com) 2.x. No Rails hooks, no regi
 gem "ruby_llm-modes"
 ```
 
-Requires `ruby_llm >= 2.0` and Ruby 3.2 or newer.
+Requires [RubyLLM](https://rubyllm.com) 2.0 or newer and Ruby 3.2 or newer.
 
 ## Modes
 
@@ -134,7 +156,7 @@ One structured-output turn on `RubyLLM.chat(model:)`. The system prompt is a fix
 
 One `RubyLLM.judge` call with a single `choice` question whose options are the modes and their descriptions. The answer is a probability per mode: the decision's `mode_name` is the most likely one and `probabilities` carries the distribution.
 
-`confidence` is the **concentration** of that distribution: 1.0 when one mode takes all the mass, 0.0 when the modes are equally likely. There is no free text, so `reason` is nil and a clarification has to be a mode of its own.
+`confidence` comes from the judgment model with the distribution and reflects how **concentrated** it is on one mode, not a self-report. The gem passes it through as is. There is no free text, so `reason` is nil and a clarification has to be a mode of its own.
 
 `model:` and `provider:` are passed to `RubyLLM.judge` as given; without them RubyLLM's defaults apply. `judge:` replaces `RubyLLM.judge` with any callable taking the same arguments and returning a `RubyLLM::Judgment`. `RubyLLM.judge` is not in ruby_llm 2.0.0; it is on RubyLLM's main branch. On a release without it, `classify_with :judge` raises `DeclarationError` unless `judge:` is given.
 

@@ -8,10 +8,11 @@ module RubyLLM
       #
       # The state is the routing input as data (instructions, conversation,
       # latest message); the mode descriptions are the choice options. The
-      # answer carries a probability per mode, and +confidence+ is the
-      # concentration of that distribution, not a self-report: a different
-      # scale from the chat backend's. There is no free text, so +reason+
-      # is always nil.
+      # answer carries a probability per mode and a +confidence+ reported
+      # by the judgment model with it: how concentrated the distribution
+      # is on one mode, not a self-report, and a different scale from the
+      # chat backend's. It is passed through as is. There is no free text,
+      # so +reason+ is always nil.
       #
       # +model+ is passed to RubyLLM.judge as given (nil selects RubyLLM's
       # default judgment model); +provider+ only when given. +judge:+ replaces
