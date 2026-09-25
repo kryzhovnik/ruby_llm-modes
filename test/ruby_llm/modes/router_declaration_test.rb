@@ -32,14 +32,14 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
                  router.modes.map(&:klass)
   end
 
-  def test_inline_description_wins_over_mode_description
+  def test_inline_description_wins_over_class_description
     registration = BaseRouter.registrations.find { |r| r.klass == ManageCardsAgent }
     assert_equal "Manages flashcards", registration.description
   end
 
-  def test_description_comes_from_mode_description_by_default
+  def test_description_comes_from_the_class_by_default
     registration = BaseRouter.registrations.find { |r| r.klass == TutorAgent }
-    assert_equal TutorAgent.mode_description, registration.description
+    assert_equal TutorAgent.description, registration.description
   end
 
   def test_as_sets_the_registration_name
@@ -99,7 +99,7 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
   # Inheritance
 
   class SubRouter < BaseRouter
-    mode Class.new(RubyLLM::ModeAgent) { mode_description "Extra" }, as: :extra
+    mode Class.new(RubyLLM::ModeAgent) { description "Extra" }, as: :extra
     fallback ClarifyAgent
     history last: 2
     instructions "Sub instructions"
@@ -185,7 +185,7 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
   def test_mode_without_a_name
     assert_declaration_error(/no registration name/) do
       mode TutorAgent
-      mode Class.new(RubyLLM::ModeAgent) { mode_description "Anonymous" }
+      mode Class.new(RubyLLM::ModeAgent) { description "Anonymous" }
       fallback TutorAgent
     end
   end

@@ -86,7 +86,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
     call = judge.last_call
     assert_equal Judge.state(message: "add it to my cards", history: HISTORY, instructions: "The learner has a flashcard open on screen."), call[:state]
     assert_equal %w[tutor card], call[:questions][:mode][:options].keys
-    assert_equal ManageCardsAgent.mode_description, call[:questions][:mode][:options]["card"]
+    assert_equal ManageCardsAgent.description, call[:questions][:mode][:options]["card"]
     assert_equal({ model: "jev-latest" }, call[:options])
 
     assert_equal "classifier", route.decided_by

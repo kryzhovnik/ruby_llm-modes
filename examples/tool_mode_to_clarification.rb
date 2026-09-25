@@ -37,7 +37,7 @@ module Examples
     end
 
     class ManageCardsAgent < RubyLLM::ModeAgent
-      mode_description "Creates, edits, or deletes flashcards."
+      description "Creates, edits, or deletes flashcards."
 
       instructions MANAGE_CARDS_INSTRUCTIONS
       tools CreateCard
@@ -48,7 +48,7 @@ module Examples
     end
 
     class ClarifyAgent < RubyLLM::ModeAgent
-      mode_description "Asks one short question when the request is ambiguous."
+      description "Asks one short question when the request is ambiguous."
 
       instructions CLARIFY_INSTRUCTIONS
       thinking effort: :low

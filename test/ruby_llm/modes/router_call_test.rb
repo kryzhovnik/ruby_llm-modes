@@ -282,7 +282,7 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
     assert_equal [], call[:history]
     assert_equal [ TutorAgent, ManageCardsAgent ], call[:modes].map(&:klass)
     assert_equal %w[tutor card], call[:modes].map(&:name)
-    assert_equal [ TutorAgent.mode_description, ManageCardsAgent.mode_description ], call[:modes].map(&:description)
+    assert_equal [ TutorAgent.description, ManageCardsAgent.description ], call[:modes].map(&:description)
     assert_nil call[:instructions]
     assert_equal({ showtime_enabled: false }, call[:inputs])
   end

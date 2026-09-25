@@ -16,11 +16,11 @@ module Examples
     CARD_SENTENCE = "The learner has a flashcard open on screen."
 
     class TutorAgent < RubyLLM::ModeAgent
-      mode_description "Explains words and grammar, corrects the learner, keeps the conversation going."
+      description "Explains words and grammar, corrects the learner, keeps the conversation going."
     end
 
     class ManageCardsAgent < RubyLLM::ModeAgent
-      mode_description "Creates, edits, or deletes flashcards. Only when the learner asks for it."
+      description "Creates, edits, or deletes flashcards. Only when the learner asks for it."
     end
 
     class Router < RubyLLM::Modes::Router

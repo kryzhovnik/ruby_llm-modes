@@ -8,14 +8,14 @@ A **mode** is a named configuration of one turn: instructions, tools, model, thi
 
 ```ruby
 class HelpAgent < RubyLLM::ModeAgent
-  mode_description "Answers questions about delivery, payment, sizes, and store policy."
+  description "Answers questions about delivery, payment, sizes, and store policy."
 
   instructions "You are a friendly support assistant for an online store. Keep answers short."
   thinking effort: :low
 end
 
 class ReturnsAgent < RubyLLM::ModeAgent
-  mode_description "Returns, exchanges, and refunds for an order the customer already has."
+  description "Returns, exchanges, and refunds for an order the customer already has."
 
   instructions "Handle the return or exchange with the tools. Check the policy before promising anything."
   tools FindOrder, CreateReturn
@@ -58,11 +58,11 @@ Requires [RubyLLM](https://rubyllm.com) 2.0 or newer and Ruby 3.2 or newer.
 
 ## Modes
 
-A mode is a `RubyLLM::Agent` with a routing description. Subclass `RubyLLM::ModeAgent`, or extend `RubyLLM::Modes::Mode` into your own agent base class.
+A mode is a `RubyLLM::Agent` with a `description`. Subclass `RubyLLM::ModeAgent`, or extend `RubyLLM::Modes::Mode` into your own agent base class.
 
 ```ruby
 class HelpAgent < RubyLLM::ModeAgent
-  mode_description <<~TEXT
+  description <<~TEXT
     Answers questions about delivery, payment, sizes, and store policy.
     No account access: a question about a specific order is not for this mode.
   TEXT
@@ -72,7 +72,7 @@ class HelpAgent < RubyLLM::ModeAgent
 end
 
 class ReturnsAndExchangesAgent < RubyLLM::ModeAgent
-  mode_description "Returns, exchanges, and refunds for an order the customer already has. Only when the customer asks for one."
+  description "Returns, exchanges, and refunds for an order the customer already has. Only when the customer asks for one."
   mode_name "returns"        # optional; default derived from the class name
 
   instructions "Handle the return or exchange with the tools. Check the policy before promising anything."
@@ -81,7 +81,9 @@ class ReturnsAndExchangesAgent < RubyLLM::ModeAgent
 end
 ```
 
-The default `mode_name` is the class name with the trailing `Agent` removed, namespaces kept, underscored: `HelpAgent` is `"help"`, `Support::HelpAgent` is `"support/help"`. Neither `mode_description` nor `mode_name` is inherited.
+`description` tells the router what the mode does and when to pick it, as a Tool's `description` tells the model when to call the tool. `instructions` are for the model that answers, and the router never reads them. Write the description from the customer's side: what they ask for, and what is not for this mode.
+
+The default `mode_name` is the class name with the trailing `Agent` removed, namespaces kept, underscored: `HelpAgent` is `"help"`, `Support::HelpAgent` is `"support/help"`. Neither `description` nor `mode_name` is inherited.
 
 A mode takes one turn of a chat that already has its own system prompt, so `instructions` in a mode defaults to `append: true, persist: false`: the mode's prompt follows the chat's and stays out of a Rails record's stored history. Declare either option to override. The defaults apply to an explicit `instructions` declaration only, so declare one in every mode.
 
@@ -91,7 +93,7 @@ A mode takes one turn of a chat that already has its own system prompt, so `inst
 class SupportRouter < RubyLLM::Modes::Router
   inputs :customer, :order                  # runtime context, as in Agent
 
-  mode HelpAgent                            # description from mode_description
+  mode HelpAgent                            # description from the class
   mode ClarifyAgent
   mode ReturnsAndExchangesAgent
   mode OrdersAgent, "Order status, tracking, and delivery dates"   # inline description wins

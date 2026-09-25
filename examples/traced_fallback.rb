@@ -13,11 +13,11 @@ require_relative "support/setup"
 module Examples
   module TracedFallback
     class TutorAgent < RubyLLM::ModeAgent
-      mode_description "Explains words and grammar, corrects the learner, keeps the conversation going."
+      description "Explains words and grammar, corrects the learner, keeps the conversation going."
     end
 
     class ShowtimeAgent < RubyLLM::ModeAgent
-      mode_description "Runs a timed review session when the learner asks to start one."
+      description "Runs a timed review session when the learner asks to start one."
     end
 
     # Any object with this +call+ is a classifier.

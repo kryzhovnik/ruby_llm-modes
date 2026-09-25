@@ -16,24 +16,24 @@ end
 
 # Fixture modes shared across the suite.
 class TutorAgent < RubyLLM::ModeAgent
-  mode_description "Explains words and grammar, corrects the learner, keeps the conversation going."
+  description "Explains words and grammar, corrects the learner, keeps the conversation going."
 end
 
 class ClarifyAgent < RubyLLM::ModeAgent
-  mode_description "Asks one short question when the request is ambiguous."
+  description "Asks one short question when the request is ambiguous."
 end
 
 class ManageCardsAgent < RubyLLM::ModeAgent
-  mode_description "Creates, edits, or deletes flashcards."
+  description "Creates, edits, or deletes flashcards."
 end
 
 class ShowtimeAgent < RubyLLM::ModeAgent
-  mode_description "Runs a timed review session."
+  description "Runs a timed review session."
 end
 
 module Chat
   class ReviewAgent < RubyLLM::ModeAgent
-    mode_description "Reviews the learner's writing."
+    description "Reviews the learner's writing."
   end
 end
 

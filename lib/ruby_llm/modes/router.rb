@@ -64,7 +64,7 @@ module RubyLLM
         end
 
         # Registers a mode. +klass+ is a RubyLLM::Agent subclass. The inline
-        # +description+ wins over +klass.mode_description+. +as:+ sets the
+        # +description+ wins over +klass.description+. +as:+ sets the
         # registration name (default: +klass.mode_name+, else the derivation
         # of Mode.derive_name). +if:+ is a lambda run on the router instance
         # that decides availability per call.
@@ -190,7 +190,7 @@ module RubyLLM
         end
 
         def description_for(klass)
-          klass.mode_description if klass.respond_to?(:mode_description)
+          klass.description if klass.respond_to?(:description)
         end
 
         # Inputs become methods on the router instance, so a name that the
@@ -211,7 +211,7 @@ module RubyLLM
           return unless registration.description.nil? || registration.description.empty?
 
           raise DeclarationError,
-                "#{name}: mode #{registration.name} has no description; declare mode_description or pass one inline"
+                "#{name}: mode #{registration.name} has no description; declare one on the class or pass it inline"
         end
 
         def validate_uniqueness!

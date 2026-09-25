@@ -6,7 +6,7 @@ module RubyLLM
     #
     #   class TutorAgent < RubyLLM::Agent
     #     extend RubyLLM::Modes::Mode
-    #     mode_description "Explains words and grammar."
+    #     description "Explains words and grammar."
     #     mode_name "tutor"   # optional
     #   end
     #
@@ -25,12 +25,14 @@ module RubyLLM
         super
       end
 
-      # Sets the routing description, or returns this class's own one.
-      # Multi-line text is fine; surrounding whitespace is removed.
-      def mode_description(text = nil)
-        return @mode_description if text.nil?
+      # Tells the router what the mode does and when to pick it, as a
+      # Tool's +description+ tells the model when to call the tool. Sets
+      # the text, or returns this class's own one. Multi-line text is fine;
+      # surrounding whitespace is removed.
+      def description(text = nil)
+        return @description if text.nil?
 
-        @mode_description = text.to_s.strip
+        @description = text.to_s.strip
       end
 
       # Sets the registration name, or returns it: the override declared on

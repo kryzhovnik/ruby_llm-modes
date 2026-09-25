@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `RubyLLM::Modes::Mode` with `mode_description` and `mode_name`, and
+- `RubyLLM::Modes::Mode` with `description` and `mode_name`, and
   `RubyLLM::ModeAgent`, an Agent with Mode extended.
 - `Mode#instructions` defaults to `append: true, persist: false`: a mode's
   prompt follows the chat's own and stays out of a Rails record's history,

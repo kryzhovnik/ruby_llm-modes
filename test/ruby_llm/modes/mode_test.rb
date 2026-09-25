@@ -4,7 +4,7 @@ require "test_helper"
 
 class RubyLLM::Modes::ModeTest < Minitest::Test
   class TutorAgent < RubyLLM::ModeAgent
-    mode_description <<~TEXT
+    description <<~TEXT
       Explains words and grammar.
     TEXT
   end
@@ -29,21 +29,21 @@ class RubyLLM::Modes::ModeTest < Minitest::Test
 
   class PlainAgent < RubyLLM::Agent
     extend RubyLLM::Modes::Mode
-    mode_description "Plain"
+    description "Plain"
   end
 
   class AppendingAgent < RubyLLM::ModeAgent
-    mode_description "Appends"
+    description "Appends"
     instructions "Mode prompt."
   end
 
   class ReplacingAgent < RubyLLM::ModeAgent
-    mode_description "Replaces"
+    description "Replaces"
     instructions "Mode prompt.", append: false, persist: true
   end
 
   class LocalsAgent < RubyLLM::ModeAgent
-    mode_description "Locals"
+    description "Locals"
     instructions display_name: -> { "Duck" }
   end
 
@@ -52,12 +52,12 @@ class RubyLLM::Modes::ModeTest < Minitest::Test
   end
 
   def test_gem_adds_no_macros_to_agent
-    refute_respond_to RubyLLM::Agent, :mode_description
+    refute_respond_to RubyLLM::Agent, :description
     refute_respond_to RubyLLM::Agent, :mode_name
   end
 
   def test_mode_can_be_extended_into_any_agent
-    assert_equal "Plain", PlainAgent.mode_description
+    assert_equal "Plain", PlainAgent.description
     assert_equal "ruby_llm/modes/mode_test/plain", PlainAgent.mode_name
   end
 
@@ -91,12 +91,12 @@ class RubyLLM::Modes::ModeTest < Minitest::Test
   end
 
   def test_description_is_stripped
-    assert_equal "Explains words and grammar.", TutorAgent.mode_description
+    assert_equal "Explains words and grammar.", TutorAgent.description
   end
 
   def test_description_is_not_inherited
-    assert_nil SubTutorAgent.mode_description
-    assert_nil RubyLLM::ModeAgent.mode_description
+    assert_nil SubTutorAgent.description
+    assert_nil RubyLLM::ModeAgent.description
   end
 
   def test_instructions_default_to_append_and_not_persist
