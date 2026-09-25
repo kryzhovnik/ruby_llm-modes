@@ -13,10 +13,17 @@ module RubyLLM
     # Neither value is inherited. A subclass declares its own description,
     # and its name is derived from its own class name unless overridden.
     #
+    # Both texts follow Agent's prompt convention. A class that declares no
+    # +description+ reads <tt>app/prompts/<agent path>/description.txt.erb</tt>
+    # when the file exists, rendered without locals; a class that declares
+    # no +instructions+ reads <tt>instructions.txt.erb</tt> next to it, as
+    # any Agent does.
+    #
     # A mode takes one turn of a chat that already has its own system
     # prompt, so its +instructions+ default to <tt>append: true</tt> (added
     # after the chat's prompt) and <tt>persist: false</tt> (kept out of a
-    # Rails record's history). Declare either option to override.
+    # Rails record's history), for the template as well as for an explicit
+    # declaration. Declare either option to override.
     module Mode
       # Agent's +instructions+ with mode defaults: <tt>append: true</tt> and
       # <tt>persist: false</tt>. Everything else, including the getter form
@@ -27,10 +34,11 @@ module RubyLLM
 
       # Tells the router what the mode does and when to pick it, as a
       # Tool's +description+ tells the model when to call the tool. Sets
-      # the text, or returns this class's own one. Multi-line text is fine;
-      # surrounding whitespace is removed.
+      # the text, or returns this class's own one: the declaration, else
+      # the +description+ prompt file when it exists. Multi-line text is
+      # fine; surrounding whitespace is removed.
       def description(text = nil)
-        return @description if text.nil?
+        return @description || description_from_prompt if text.nil?
 
         @description = text.to_s.strip
       end
@@ -58,6 +66,26 @@ module RubyLLM
 
         base = klass.name.sub(/(?<=\w)Agent\z/, "")
         RubyLLM::Support::Utils.underscore(base.gsub("::", "/"))
+      end
+
+      private
+
+      # Agent's conventional +instructions+ template with the mode defaults
+      # instead of Agent's. Explicit declarations are returned as they are.
+      def instructions_config
+        config = super
+        return config if instruction_declarations.any?
+
+        config.map { |declaration| declaration.merge(append: true, persist: false) }
+      end
+
+      def description_from_prompt
+        return if name.nil?
+
+        prompt = RubyLLM::Prompt.new("#{prompt_agent_path}/description")
+        return unless File.exist?(prompt.path)
+
+        prompt.render.strip
       end
     end
   end

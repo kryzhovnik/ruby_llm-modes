@@ -1,9 +1,10 @@
 # frozen_string_literal: true
 
 require "test_helper"
-require "tmpdir"
 
 class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
+  include PromptRoot
+
   Chat = RubyLLM::Modes::Classifiers::Chat
 
   MODES = [
@@ -211,22 +212,5 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
     factory.instance_variable_set(:@selection, [ "card" ])
     route = CardRouter.new(card: nil).call("add it", classifier: Chat.new(chat_factory: factory))
     assert_instance_of RubyLLM::Modes::ContractError, route.error
-  end
-
-  private
-
-  # Serves +files+ (path under app/prompts => ERB source) from a temporary
-  # prompt root for the block.
-  def with_prompt_root(files)
-    Dir.mktmpdir do |dir|
-      files.each do |path, source|
-        FileUtils.mkdir_p(File.dirname(File.join(dir, path)))
-        File.write(File.join(dir, path), source)
-      end
-      RubyLLM::Prompt.roots << dir
-      yield
-    ensure
-      RubyLLM::Prompt.roots.instance_variable_get(:@registered).delete_if { |root| root.to_s == dir }
-    end
   end
 end

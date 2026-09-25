@@ -4,6 +4,7 @@ $LOAD_PATH.unshift File.expand_path("../lib", __dir__)
 
 require "ruby_llm/modes"
 require "minitest/autorun"
+require "tmpdir"
 require_relative "../examples/support/stub_provider"
 
 # The classifier backend builds real RubyLLM chats. A provider refuses to
@@ -66,5 +67,22 @@ class FakeClassifier
 
   def last_call
     @calls.last
+  end
+end
+
+# Serves prompt files from a temporary prompt root for the block.
+module PromptRoot
+  # +files+ maps a path under app/prompts to its ERB source.
+  def with_prompt_root(files)
+    Dir.mktmpdir do |dir|
+      files.each do |path, source|
+        FileUtils.mkdir_p(File.dirname(File.join(dir, path)))
+        File.write(File.join(dir, path), source)
+      end
+      RubyLLM::Prompt.roots << dir
+      yield
+    ensure
+      RubyLLM::Prompt.roots.instance_variable_get(:@registered).delete_if { |root| root.to_s == dir }
+    end
   end
 end

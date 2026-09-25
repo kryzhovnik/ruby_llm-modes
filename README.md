@@ -9,15 +9,12 @@ A **mode** is a named configuration of one turn: instructions, tools, model, thi
 ```ruby
 class HelpAgent < RubyLLM::ModeAgent
   description "Answers questions about delivery, payment, sizes, and store policy."
-
-  instructions "You are a friendly support assistant for an online store. Keep answers short."
   thinking effort: :low
+  # instructions from app/prompts/help_agent/instructions.txt.erb
 end
 
 class ReturnsAgent < RubyLLM::ModeAgent
   description "Returns, exchanges, and refunds for an order the customer already has."
-
-  instructions "Handle the return or exchange with the tools. Check the policy before promising anything."
   tools FindOrder, CreateReturn
   thinking effort: :high
 end
@@ -67,7 +64,6 @@ class HelpAgent < RubyLLM::ModeAgent
     No account access: a question about a specific order is not for this mode.
   TEXT
 
-  instructions "You are a friendly support assistant for an online store. Keep answers short."
   thinking effort: :low
 end
 
@@ -75,7 +71,6 @@ class ReturnsAndExchangesAgent < RubyLLM::ModeAgent
   description "Returns, exchanges, and refunds for an order the customer already has. Only when the customer asks for one."
   mode_name "returns"        # optional; default derived from the class name
 
-  instructions "Handle the return or exchange with the tools. Check the policy before promising anything."
   tools FindOrder, CreateReturn, ExchangeItem
   thinking effort: :high
 end
@@ -83,9 +78,11 @@ end
 
 `description` tells the router what the mode does and when to pick it, as a Tool's `description` tells the model when to call the tool. `instructions` are for the model that answers, and the router never reads them. Write the description from the customer's side: what they ask for, and what is not for this mode.
 
+A mode that declares no `description` reads `app/prompts/help_agent/description.txt.erb`, rendered without locals: the convention Agent has for `instructions`, applied to the other text. The router reads descriptions when it is built.
+
 The default `mode_name` is the class name with the trailing `Agent` removed, namespaces kept, underscored: `HelpAgent` is `"help"`, `Support::HelpAgent` is `"support/help"`. Neither `description` nor `mode_name` is inherited.
 
-A mode takes one turn of a chat that already has its own system prompt, so `instructions` in a mode defaults to `append: true, persist: false`: the mode's prompt follows the chat's and stays out of a Rails record's stored history. Declare either option to override. The defaults apply to an explicit `instructions` declaration only, so declare one in every mode.
+A mode takes one turn of a chat that already has its own system prompt, so `instructions` in a mode defaults to `append: true, persist: false`: the mode's prompt follows the chat's and stays out of a Rails record's stored history. Declare either option to override. The defaults apply to the prompt file as well as to an explicit declaration.
 
 ## The declaration
 

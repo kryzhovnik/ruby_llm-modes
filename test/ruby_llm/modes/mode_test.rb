@@ -3,6 +3,7 @@
 require "test_helper"
 
 class RubyLLM::Modes::ModeTest < Minitest::Test
+  include PromptRoot
   class TutorAgent < RubyLLM::ModeAgent
     description <<~TEXT
       Explains words and grammar.
@@ -45,6 +46,11 @@ class RubyLLM::Modes::ModeTest < Minitest::Test
   class LocalsAgent < RubyLLM::ModeAgent
     description "Locals"
     instructions display_name: -> { "Duck" }
+  end
+
+  # Declares nothing: both texts may come from prompt files.
+  module Prompted
+    class HelpAgent < RubyLLM::ModeAgent; end
   end
 
   def test_mode_agent_is_an_agent
@@ -97,6 +103,34 @@ class RubyLLM::Modes::ModeTest < Minitest::Test
   def test_description_is_not_inherited
     assert_nil SubTutorAgent.description
     assert_nil RubyLLM::ModeAgent.description
+  end
+
+  def test_description_comes_from_the_prompt_file_when_not_declared
+    files = { "ruby_llm/modes/mode_test/prompted/help_agent/description.txt.erb" => "Answers <%= 'questions' %>.\n" }
+
+    with_prompt_root(files) do
+      assert_equal "Answers questions.", Prompted::HelpAgent.description
+    end
+    assert_nil Prompted::HelpAgent.description
+  end
+
+  def test_declared_description_wins_over_the_prompt_file
+    files = { "ruby_llm/modes/mode_test/appending_agent/description.txt.erb" => "From file" }
+
+    with_prompt_root(files) do
+      assert_equal "Appends", AppendingAgent.description
+    end
+  end
+
+  def test_instructions_template_gets_the_mode_defaults
+    files = { "ruby_llm/modes/mode_test/prompted/help_agent/instructions.txt.erb" => "From file." }
+
+    with_prompt_root(files) do
+      chat = RubyLLM.chat(model: "gemini-3.5-flash-lite").with_instructions("Base.")
+      Prompted::HelpAgent.new(chat:)
+
+      assert_equal [ "Base.", "From file." ], system_contents(chat)
+    end
   end
 
   def test_instructions_default_to_append_and_not_persist
