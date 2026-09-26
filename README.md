@@ -8,11 +8,11 @@ One chat, many modes: a cheap classifier picks the configuration of each turn be
 
 Two messages in the same chat can need different configurations. A question about sizes calls for a quick answer; returning a jacket needs order lookup, return tools, and more time. With one configuration for both, every turn carries every tool description and uses the same model and effort level. Similar tools compete, and the choice of what to do stays inside the answering model, where you cannot log or test it separately.
 
-A **mode** is a named configuration of one turn: instructions, tools, model, thinking. All modes share one history. Before each answer a small classifier reads the latest user message and a window of history and answers one cheap question: *which mode should take this turn?* The model that answers never sees another mode's tools or instructions. The decision is a value you can log and test: which mode, why, and what the classifier actually said. A judgment model or a small chat model answers the question in a fraction of a second, for less than the full toolset costs on every turn.
-
 ![Two turns in an expanded support chat. With one configuration, both turns carry Help, Returns, Orders, and Escalation instructions and tools. With modes, each turn carries only its selected mode. The earlier conversation remains available.](assets/one-configuration-vs-modes.svg)
 
 *The diagram shows an expanded support router; the example below keeps two modes.*
+
+A **mode** is a named configuration of one turn: instructions, tools, model, thinking. All modes share one history. Before each answer a small classifier reads the latest user message and a window of history and answers one cheap question: *which mode should take this turn?* The model that answers never sees another mode's tools or instructions. The decision is a value you can log and test: which mode, why, and what the classifier actually said. A judgment model or a small chat model answers the question in a fraction of a second, for less than the full toolset costs on every turn.
 
 ```ruby
 class HelpAgent < RubyLLM::ModeAgent
