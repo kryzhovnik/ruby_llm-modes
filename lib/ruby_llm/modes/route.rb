@@ -7,7 +7,7 @@ module RubyLLM
     #
     # mode_class:  the agent class
     # mode_name:   its registration name
-    # decided_by:  "caller", "classifier", or "fallback"
+    # decided_by:  :caller, :classifier, or :fallback
     # reason:      why this mode
     # decision:    Decision, or nil when no classifier ran
     # duration_ms: Integer, nil on caller-decided routes
@@ -37,9 +37,10 @@ module RubyLLM
 
       # The fields with string keys, for logs. Drops the mode class, the
       # error, the chat, and the inputs; the nested decision and classifier
-      # trace get string keys too.
+      # trace get string keys too. Serializes decided_by as a string.
       def to_h
         super.except(:mode_class, :error, :chat, :inputs).transform_keys(&:to_s).tap do |hash|
+          hash["decided_by"] = decided_by.to_s
           hash["decision"] = decision&.to_h
           hash["classifier"] = classifier&.transform_keys(&:to_s)
         end

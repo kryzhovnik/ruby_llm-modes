@@ -86,7 +86,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
     assert_equal Chat.prompt(message: "add it to my cards", history: HISTORY, modes: CardRouter.new(card: nil).modes), factory.system_prompt
     assert_equal %w[tutor card], request[:schema].dig(:schema, :properties, :mode, :enum)
 
-    assert_equal "classifier", route.decided_by
+    assert_equal :classifier, route.decided_by
     assert_equal ManageCardsAgent, route.mode_class
     assert_equal 0.8, route.decision.confidence
     assert_equal "asked to add", route.reason
@@ -110,7 +110,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
     router_class = Class.new(CardRouter) { classify_with :chat, model: "gemini-3.5-flash-lite", chat_factory: factory }
 
     route = router_class.new(card: nil).route(conversation("add it"))
-    assert_equal "classifier", route.decided_by
+    assert_equal :classifier, route.decided_by
     assert_equal ManageCardsAgent, route.mode_class
     assert_equal({ with: "chat", model: "gemini-3.5-flash-lite" }, route.classifier)
   end

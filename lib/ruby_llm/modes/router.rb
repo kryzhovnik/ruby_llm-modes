@@ -333,7 +333,7 @@ module RubyLLM
         registration = modes.find { |candidate| candidate.name == name.to_s }
         raise UnknownMode.new("Unknown mode #{name}", receiver: self, key: name) unless registration
 
-        Route.new(mode_class: registration.klass, mode_name: registration.name, chat:, inputs:, decided_by: "caller", reason: "Mode requested by caller")
+        Route.new(mode_class: registration.klass, mode_name: registration.name, chat:, inputs:, decided_by: :caller, reason: "Mode requested by caller")
       end
 
       private
@@ -349,12 +349,12 @@ module RubyLLM
           return fallback_route(chat, "Below confidence threshold", **common) if decision.confidence < threshold
         end
 
-        Route.new(mode_class: registration.klass, mode_name: registration.name, chat:, inputs:, decided_by: "classifier", reason: decision.reason, **common)
+        Route.new(mode_class: registration.klass, mode_name: registration.name, chat:, inputs:, decided_by: :classifier, reason: decision.reason, **common)
       end
 
       def fallback_route(chat, reason, **attributes)
         registration = self.class.registrations.find { |candidate| candidate.klass == self.class.fallback_class }
-        Route.new(mode_class: registration.klass, mode_name: registration.name, chat:, inputs:, decided_by: "fallback", reason: reason, **attributes)
+        Route.new(mode_class: registration.klass, mode_name: registration.name, chat:, inputs:, decided_by: :fallback, reason: reason, **attributes)
       end
 
       # "Classifier failed: <class>: <first line of the message>", so a

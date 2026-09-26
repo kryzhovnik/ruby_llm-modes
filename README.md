@@ -222,13 +222,13 @@ router.route(chat, classifier: FakeClassifier.new(decision))
 |---------------|--------------------------------------------------------------|
 | `mode_class`  | the agent class                                              |
 | `mode_name`   | its registration name                                        |
-| `decided_by`  | `"caller"`, `"classifier"`, or `"fallback"`                  |
+| `decided_by`  | `:caller`, `:classifier`, or `:fallback`                  |
 | `reason`      | why this mode (see below)                                    |
 | `decision`    | the classifier's `Decision`, or nil when none ran            |
 | `duration_ms` | classifier time, nil on caller-decided routes                |
 | `classifier`  | `{ with:, model: }`, or nil when no backend was called       |
 
-`route.chat` is the chat the route was decided for, `route.error` the exception a failed classifier raised, and `route.inputs` the router's inputs; `route.mode(**options)` is `mode_class.new(chat:, inputs:, **options)`. `to_h` is the fields above with string keys, minus `mode_class`; `Decision#to_h` has string keys and omits `probabilities` when nil.
+`route.chat` is the chat the route was decided for, `route.error` the exception a failed classifier raised, and `route.inputs` the router's inputs; `route.mode(**options)` is `mode_class.new(chat:, inputs:, **options)`. `to_h` is the fields above with string keys and `decided_by` as a string, minus `mode_class`; `Decision#to_h` has string keys and omits `probabilities` when nil.
 
 ### Outcomes
 
@@ -236,13 +236,13 @@ The route is decided by the first rule that applies:
 
 | Situation                                     | decided_by     | reason                                 |
 |-----------------------------------------------|----------------|----------------------------------------|
-| `force(name, chat:)`                          | `"caller"`     | `"Mode requested by caller"`           |
-| only the fallback is available                | `"fallback"`   | `"No other mode available"`            |
-| classifier raised, or violated the contract   | `"fallback"`   | `"Classifier failed: <class>: <message>"` |
-| decision names an unknown or unavailable mode | `"fallback"`   | `"Unknown mode <name>"`                |
-| threshold on, confidence nil                  | `"fallback"`   | `"Confidence not scored"`              |
-| threshold on, confidence below it             | `"fallback"`   | `"Below confidence threshold"`         |
-| otherwise                                     | `"classifier"` | the decision's reason                  |
+| `force(name, chat:)`                          | `:caller`     | `"Mode requested by caller"`           |
+| only the fallback is available                | `:fallback`   | `"No other mode available"`            |
+| classifier raised, or violated the contract   | `:fallback`   | `"Classifier failed: <class>: <message>"` |
+| decision names an unknown or unavailable mode | `:fallback`   | `"Unknown mode <name>"`                |
+| threshold on, confidence nil                  | `:fallback`   | `"Confidence not scored"`              |
+| threshold on, confidence below it             | `:fallback`   | `"Below confidence threshold"`         |
+| otherwise                                     | `:classifier` | the decision's reason                  |
 
 `<message>` is the first line of the exception's message, cut at 200 characters, so a provider's error body reaches the log.
 

@@ -42,7 +42,7 @@ class RubyLLM::Modes::RouterRouteTest < Minitest::Test
     route = ThresholdRouter.new(showtime_enabled: true).force(:showtime, chat: conversation)
     assert_equal ShowtimeAgent, route.mode_class
     assert_equal "showtime", route.mode_name
-    assert_equal "caller", route.decided_by
+    assert_equal :caller, route.decided_by
     assert_equal "Mode requested by caller", route.reason
     assert_nil route.decision
     assert_nil route.classifier
@@ -77,7 +77,7 @@ class RubyLLM::Modes::RouterRouteTest < Minitest::Test
 
     refute classifier.called?
     assert_equal TutorAgent, route.mode_class
-    assert_equal "fallback", route.decided_by
+    assert_equal :fallback, route.decided_by
     assert_equal "No other mode available", route.reason
     assert_nil route.decision
     assert_nil route.classifier
@@ -96,7 +96,7 @@ class RubyLLM::Modes::RouterRouteTest < Minitest::Test
   def test_classifier_raised
     route = route(FakeClassifier.new { raise IOError, "network" })
     assert_equal TutorAgent, route.mode_class
-    assert_equal "fallback", route.decided_by
+    assert_equal :fallback, route.decided_by
     assert_equal "Classifier failed: IOError: network", route.reason
     assert_nil route.decision
     assert_instance_of IOError, route.error
@@ -132,7 +132,7 @@ class RubyLLM::Modes::RouterRouteTest < Minitest::Test
 
   def test_nan_confidence_is_a_contract_violation
     route = route(FakeClassifier.deciding(mode_name: "card", confidence: Float::NAN))
-    assert_equal "fallback", route.decided_by
+    assert_equal :fallback, route.decided_by
     assert_instance_of ContractError, route.error
   end
 
@@ -166,7 +166,7 @@ class RubyLLM::Modes::RouterRouteTest < Minitest::Test
 
   def test_accepted_decision_serialises
     route = route(FakeClassifier.deciding(mode_name: "card", confidence: 0.9, probabilities: { card: 0.9, tutor: 0.1 }))
-    assert_equal "classifier", route.decided_by
+    assert_equal :classifier, route.decided_by
     assert_equal({ "card" => 0.9, "tutor" => 0.1 }, route.to_h.dig("decision", "probabilities"))
   end
 
@@ -191,7 +191,7 @@ class RubyLLM::Modes::RouterRouteTest < Minitest::Test
     decision = Decision.new(mode_name: "ghost", confidence: 0.9, reason: "spooky")
     route = route(FakeClassifier.new(decision))
     assert_equal TutorAgent, route.mode_class
-    assert_equal "fallback", route.decided_by
+    assert_equal :fallback, route.decided_by
     assert_equal "Unknown mode ghost", route.reason
     assert_equal decision, route.decision
   end
@@ -212,7 +212,7 @@ class RubyLLM::Modes::RouterRouteTest < Minitest::Test
   def test_confidence_not_scored
     route = route(FakeClassifier.deciding(mode_name: "card", confidence: nil, reason: "unscored"))
     assert_equal TutorAgent, route.mode_class
-    assert_equal "fallback", route.decided_by
+    assert_equal :fallback, route.decided_by
     assert_equal "Confidence not scored", route.reason
     assert_equal "card", route.decision.mode_name
   end
@@ -223,7 +223,7 @@ class RubyLLM::Modes::RouterRouteTest < Minitest::Test
     route = route(FakeClassifier.deciding(mode_name: "showtime", confidence: 0.42, reason: "maybe"))
     assert_equal TutorAgent, route.mode_class
     assert_equal "tutor", route.mode_name
-    assert_equal "fallback", route.decided_by
+    assert_equal :fallback, route.decided_by
     assert_equal "Below confidence threshold", route.reason
     assert_equal "showtime", route.decision.mode_name
     assert_equal 0.42, route.decision.confidence
@@ -231,7 +231,7 @@ class RubyLLM::Modes::RouterRouteTest < Minitest::Test
 
   def test_confidence_equal_to_threshold_passes
     route = route(FakeClassifier.deciding(mode_name: "card", confidence: 0.6))
-    assert_equal "classifier", route.decided_by
+    assert_equal :classifier, route.decided_by
   end
 
   # Row 6: classifier accepted
@@ -240,7 +240,7 @@ class RubyLLM::Modes::RouterRouteTest < Minitest::Test
     route = route()
     assert_equal ManageCardsAgent, route.mode_class
     assert_equal "card", route.mode_name
-    assert_equal "classifier", route.decided_by
+    assert_equal :classifier, route.decided_by
     assert_equal "asked for a card", route.reason
     assert_equal 0.9, route.decision.confidence
     assert_kind_of Integer, route.duration_ms
@@ -248,7 +248,7 @@ class RubyLLM::Modes::RouterRouteTest < Minitest::Test
   end
 
   def test_declared_classifier_is_used_when_no_override_is_given
-    assert_equal "classifier", route.decided_by
+    assert_equal :classifier, route.decided_by
     assert_equal "card", route.mode_name
   end
 
@@ -256,12 +256,12 @@ class RubyLLM::Modes::RouterRouteTest < Minitest::Test
 
   def test_threshold_off_accepts_nil_confidence
     route = route(FakeClassifier.deciding(mode_name: "card", confidence: nil), router: OpenRouter)
-    assert_equal "classifier", route.decided_by
+    assert_equal :classifier, route.decided_by
   end
 
   def test_threshold_off_accepts_low_confidence
     route = route(FakeClassifier.deciding(mode_name: "card", confidence: 0.01), router: OpenRouter)
-    assert_equal "classifier", route.decided_by
+    assert_equal :classifier, route.decided_by
   end
 
   def test_threshold_off_still_rejects_unknown_modes

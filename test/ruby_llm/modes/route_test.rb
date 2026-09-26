@@ -14,7 +14,7 @@ class RubyLLM::Modes::RouteTest < Minitest::Test
   end
 
   def route_with(inputs, chat: nil)
-    Route.new(mode_class: GreetingAgent, mode_name: "greeting", decided_by: "caller", reason: "Mode requested by caller",
+    Route.new(mode_class: GreetingAgent, mode_name: "greeting", decided_by: :caller, reason: "Mode requested by caller",
               chat:, inputs:)
   end
 
@@ -48,7 +48,7 @@ class RubyLLM::Modes::RouteTest < Minitest::Test
   end
 
   def test_chat_and_inputs_default_and_stay_out_of_to_h
-    route = Route.new(mode_class: TutorAgent, mode_name: "tutor", decided_by: "caller", reason: "Mode requested by caller")
+    route = Route.new(mode_class: TutorAgent, mode_name: "tutor", decided_by: :caller, reason: "Mode requested by caller")
 
     assert_nil route.chat
     assert_equal({}, route.inputs)
@@ -58,7 +58,7 @@ class RubyLLM::Modes::RouteTest < Minitest::Test
   end
 
   def test_optional_members_default_to_nil
-    route = Route.new(mode_class: TutorAgent, mode_name: "tutor", decided_by: "caller", reason: "Mode requested by caller")
+    route = Route.new(mode_class: TutorAgent, mode_name: "tutor", decided_by: :caller, reason: "Mode requested by caller")
     assert_nil route.decision
     assert_nil route.duration_ms
     assert_nil route.classifier
@@ -68,7 +68,7 @@ class RubyLLM::Modes::RouteTest < Minitest::Test
   def test_to_h_drops_mode_class_and_error_and_uses_string_keys
     decision = Decision.new(mode_name: "showtime", confidence: 0.42, reason: "looks like a show")
     route = Route.new(
-      mode_class: TutorAgent, mode_name: "tutor", decided_by: "fallback", reason: "Below confidence threshold",
+      mode_class: TutorAgent, mode_name: "tutor", decided_by: :fallback, reason: "Below confidence threshold",
       decision: decision, duration_ms: 812, classifier: { with: "chat", model: "gemini-3.5-flash-lite" },
       error: RuntimeError.new("boom")
     )
@@ -86,8 +86,17 @@ class RubyLLM::Modes::RouteTest < Minitest::Test
     )
   end
 
+  def test_to_h_serializes_decided_by_without_changing_the_route
+    %i[caller classifier fallback].each do |source|
+      route = Route.new(mode_class: TutorAgent, mode_name: "tutor", decided_by: source, reason: nil)
+
+      assert_equal source.to_s, route.to_h["decided_by"]
+      assert_equal source, route.decided_by
+    end
+  end
+
   def test_to_h_keeps_nil_slots
-    route = Route.new(mode_class: TutorAgent, mode_name: "tutor", decided_by: "caller", reason: "Mode requested by caller")
+    route = Route.new(mode_class: TutorAgent, mode_name: "tutor", decided_by: :caller, reason: "Mode requested by caller")
     assert_equal(
       { "mode_name" => "tutor", "decided_by" => "caller", "reason" => "Mode requested by caller",
         "duration_ms" => nil, "classifier" => nil, "decision" => nil },
