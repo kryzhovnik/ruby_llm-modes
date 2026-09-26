@@ -16,19 +16,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Mode#instructions` defaults to `append: true, persist: false`, for the
   conventional `instructions.txt.erb` template as well: a mode's prompt
   follows the chat's own and stays out of a Rails record's history, so the
-  call site is `route.mode(chat:).complete`.
+  call site is `route.mode.complete`.
 - `RubyLLM::Modes::Router` with the declaration DSL (`inputs`, `mode`,
   `instructions`, `history`, `fallback`, `classify_with`, `on_error`),
   inheritance that copies declarations, validation in `new`, availability
-  via `if:`, history normalisation with `history last: n` / `history :all`,
-  `call`, `force`, and the ordered outcome table.
+  via `if:`, `route(chat)`, `force(name, chat:)`, and the ordered outcome
+  table. `route` reads the conversation from the chat with `each`: system messages
+  are left out, the last entry must be a user message and is routed, the
+  entries before it are the history, limited by `history last: n` /
+  `history :all`.
 - `Registration` value objects: what `Router#modes` returns and what a
   classifier receives as `modes:`.
 - `Decision` and `Route` value objects; `Route#decided_by` (`"caller"`,
   `"classifier"`, `"fallback"`), `Route#duration_ms`, and `to_h` on both with
   the field names as string keys, for logs.
-- `Route#mode(chat:)` builds the mode's agent on the chat with the router's
-  inputs as the agent's `inputs:`; `Route#mode_class` is the class.
+- `Route#chat` is the chat the route was decided for; `Route#mode` builds
+  the mode's agent on it with the router's inputs as the agent's `inputs:`;
+  `Route#mode_class` is the class.
 - `Router.instructions` mirrors `Agent.instructions`: a string, a block, or
   the conventional template `app/prompts/<router_path>/instructions.txt.erb`
   with keyword locals; `prompt(name, **locals)` inside a block renders a

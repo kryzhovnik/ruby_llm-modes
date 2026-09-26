@@ -42,6 +42,25 @@ end
 # needs an inline description.
 class PlainAgent < RubyLLM::Agent; end
 
+# A stand-in for the chat a router routes: anything that yields its
+# messages with +each+, and nothing else. The entries are what
+# Router#route accepts: hashes, RubyLLM::Message objects, records with
+# +to_llm+, or strings.
+class Conversation
+  def initialize(entries)
+    @entries = entries
+  end
+
+  def each(&)
+    @entries.each(&)
+  end
+end
+
+# A conversation of +history+ followed by the user message to route.
+def conversation(message = "add it", history: [])
+  Conversation.new(history + [ { role: :user, content: message } ])
+end
+
 # A classifier that satisfies the classifier contract and records every call.
 class FakeClassifier
   attr_reader :calls

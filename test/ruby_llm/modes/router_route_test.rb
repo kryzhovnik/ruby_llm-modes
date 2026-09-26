@@ -2,7 +2,7 @@
 
 require "test_helper"
 
-class RubyLLM::Modes::RouterCallTest < Minitest::Test
+class RubyLLM::Modes::RouterRouteTest < Minitest::Test
   Decision = RubyLLM::Modes::Decision
   ContractError = RubyLLM::Modes::ContractError
 
@@ -22,18 +22,24 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
   end
 
   def route(classifier = nil, router: ThresholdRouter, message: "add it", history: [], showtime_enabled: true)
-    router.new(showtime_enabled:).call(message, history:, classifier:)
+    router.new(showtime_enabled:).route(conversation(message, history:), classifier:)
   end
 
   # Row 0: force
 
   def test_routes_carry_the_router_inputs
     assert_equal({ showtime_enabled: true }, route.inputs)
-    assert_equal({ showtime_enabled: false }, ThresholdRouter.new(showtime_enabled: false).force(:tutor).inputs)
+    assert_equal({ showtime_enabled: false }, ThresholdRouter.new(showtime_enabled: false).force(:tutor, chat: conversation).inputs)
+  end
+
+  def test_routes_carry_the_chat
+    chat = conversation
+    assert_same chat, ThresholdRouter.new(showtime_enabled: true).route(chat).chat
+    assert_same chat, ThresholdRouter.new(showtime_enabled: true).force(:tutor, chat:).chat
   end
 
   def test_forced_route
-    route = ThresholdRouter.new(showtime_enabled: true).force(:showtime)
+    route = ThresholdRouter.new(showtime_enabled: true).force(:showtime, chat: conversation)
     assert_equal ShowtimeAgent, route.mode_class
     assert_equal "showtime", route.mode_name
     assert_equal "caller", route.decided_by
@@ -45,14 +51,14 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
 
   def test_force_respects_availability
     error = assert_raises(RubyLLM::Modes::UnknownMode) do
-      ThresholdRouter.new(showtime_enabled: false).force("showtime")
+      ThresholdRouter.new(showtime_enabled: false).force("showtime", chat: conversation)
     end
     assert_kind_of KeyError, error
     assert_equal "showtime", error.key
   end
 
   def test_force_unknown_name
-    assert_raises(RubyLLM::Modes::UnknownMode) { ThresholdRouter.new(showtime_enabled: true).force("nope") }
+    assert_raises(RubyLLM::Modes::UnknownMode) { ThresholdRouter.new(showtime_enabled: true).force("nope", chat: conversation) }
   end
 
   # Row 1: only the fallback is available
@@ -67,7 +73,7 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
 
   def test_fallback_only_shortcut_skips_the_classifier
     classifier = FakeClassifier.deciding(mode_name: "showtime")
-    route = LonelyRouter.new(flag: false).call("hi", classifier: classifier)
+    route = LonelyRouter.new(flag: false).route(conversation("hi"), classifier: classifier)
 
     refute classifier.called?
     assert_equal TutorAgent, route.mode_class
@@ -80,7 +86,7 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
 
   def test_fallback_only_shortcut_does_not_apply_when_another_mode_is_available
     classifier = FakeClassifier.deciding(mode_name: "showtime", confidence: 1.0)
-    route = LonelyRouter.new(flag: true).call("hi", classifier: classifier)
+    route = LonelyRouter.new(flag: true).route(conversation("hi"), classifier: classifier)
     assert classifier.called?
     assert_equal ShowtimeAgent, route.mode_class
   end
@@ -311,9 +317,9 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
     assert_nil classifier.last_call[:instructions]
   end
 
-  # History normalisation
+  # The conversation: what is routed and what is history
 
-  def test_history_is_normalised_before_the_classifier_sees_it
+  def test_the_latest_user_message_is_routed_and_the_rest_is_history
     classifier = FakeClassifier.deciding(mode_name: "card")
     history = [
       { role: :user, content: "one" },
@@ -321,7 +327,8 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
       RubyLLM::Message.new(role: :user, content: "three"),
       "four"
     ]
-    route(classifier, history: history)
+    route(classifier, message: "add it", history: history)
+    assert_equal "add it", classifier.last_call[:message]
     assert_equal [
       { role: :user, content: "one" },
       { role: :assistant, content: "two" },
@@ -330,15 +337,75 @@ class RubyLLM::Modes::RouterCallTest < Minitest::Test
     ], classifier.last_call[:history]
   end
 
-  def test_history_accepts_records_responding_to_to_llm
+  def test_system_messages_are_left_out
+    classifier = FakeClassifier.deciding(mode_name: "card")
+    chat = Conversation.new([
+      { role: :system, content: "You are Duck." },
+      { role: :user, content: "hi" },
+      { role: :assistant, content: "hello" },
+      RubyLLM::Message.new(role: :system, content: "Appended by a mode."),
+      { role: :user, content: "add it" }
+    ])
+    ThresholdRouter.new(showtime_enabled: true).route(chat, classifier: classifier)
+    assert_equal "add it", classifier.last_call[:message]
+    assert_equal [ { role: :user, content: "hi" }, { role: :assistant, content: "hello" } ], classifier.last_call[:history]
+  end
+
+  def test_the_routed_message_is_the_message_content_as_a_string
+    classifier = FakeClassifier.deciding(mode_name: "card")
+    chat = Conversation.new([ RubyLLM::Message.new(role: :user, content: "add it") ])
+    ThresholdRouter.new(showtime_enabled: true).route(chat, classifier: classifier)
+    assert_equal "add it", classifier.last_call[:message]
+  end
+
+  def test_messages_accept_records_responding_to_to_llm
     record = Struct.new(:to_llm).new(RubyLLM::Message.new(role: :assistant, content: "hello"))
     classifier = FakeClassifier.deciding(mode_name: "card")
     route(classifier, history: [ record ])
     assert_equal [ { role: :assistant, content: "hello" } ], classifier.last_call[:history]
   end
 
-  def test_history_rejects_other_objects
+  def test_messages_reject_other_objects
     assert_raises(ArgumentError) { route(FakeClassifier.deciding(mode_name: "card"), history: [ 42 ]) }
+  end
+
+  def test_route_reads_the_chat_with_each_only
+    chat = Object.new
+    def chat.each(&) = [ { role: :user, content: "add it" } ].each(&)
+    classifier = FakeClassifier.deciding(mode_name: "card")
+    ThresholdRouter.new(showtime_enabled: true).route(chat, classifier: classifier)
+    assert_equal "add it", classifier.last_call[:message]
+  end
+
+  def test_route_reads_a_ruby_llm_chat_and_a_rails_style_record_alike
+    chat = RubyLLM.chat(model: "gemini-3.5-flash-lite").with_instructions("Base.").ask_later("add it")
+    record = Object.new
+    record.define_singleton_method(:each) { |&block| chat.each(&block) }
+    record.define_singleton_method(:messages) { raise "the bare association must not be read" }
+
+    classifier = FakeClassifier.deciding(mode_name: "card")
+    ThresholdRouter.new(showtime_enabled: true).route(record, classifier: classifier)
+    assert_equal "add it", classifier.last_call[:message]
+    assert_equal [], classifier.last_call[:history]
+  end
+
+  def test_route_rejects_an_object_without_each
+    error = assert_raises(ArgumentError) { ThresholdRouter.new(showtime_enabled: true).route("add it") }
+    assert_match(/responding to each/, error.message)
+  end
+
+  def test_route_rejects_a_chat_with_no_message
+    router = ThresholdRouter.new(showtime_enabled: true)
+    assert_raises(ArgumentError) { router.route(Conversation.new([])) }
+    assert_raises(ArgumentError) { router.route(Conversation.new([ { role: :system, content: "Base." } ])) }
+  end
+
+  def test_route_rejects_a_chat_whose_latest_message_is_not_from_the_user
+    router = ThresholdRouter.new(showtime_enabled: true)
+    chat = Conversation.new([ { role: :user, content: "hi" }, { role: :assistant, content: "hello" } ])
+    error = assert_raises(ArgumentError) { router.route(chat) }
+    assert_match(/latest message must be a user message, got role :assistant/, error.message)
+    assert_raises(ArgumentError) { router.route(Conversation.new([ "a bare string" ])) }
   end
 
   def test_history_last_keeps_the_last_entries
@@ -425,14 +492,14 @@ class RubyLLM::Modes::RouterTruncationTest < Minitest::Test
 
   def test_a_message_within_the_cap_is_passed_as_given
     classifier = FakeClassifier.deciding(mode_name: "card")
-    CappedRouter.new.call("a" * 100, classifier: classifier)
+    CappedRouter.new.route(conversation("a" * 100), classifier: classifier)
     assert_equal "a" * 100, classifier.last_call[:message]
   end
 
   def test_a_long_message_keeps_its_head_and_tail
     classifier = FakeClassifier.deciding(mode_name: "card")
     message = "make cards from this article: " + ("x" * 500) + " and only the nouns"
-    CappedRouter.new.call(message, classifier: classifier)
+    CappedRouter.new.route(conversation(message), classifier: classifier)
 
     sent = classifier.last_call[:message]
     assert_equal Truncation.head_and_tail(message, 100), sent
@@ -444,7 +511,7 @@ class RubyLLM::Modes::RouterTruncationTest < Minitest::Test
   def test_each_history_entry_keeps_its_head
     classifier = FakeClassifier.deciding(mode_name: "card")
     history = [ { role: :user, content: "short" }, { role: :assistant, content: "y" * 60 }, "z" * 30 ]
-    CappedRouter.new.call("hi", history: history, classifier: classifier)
+    CappedRouter.new.route(conversation("hi", history:), classifier: classifier)
 
     assert_equal [
       { role: :user, content: "short" },
@@ -455,7 +522,7 @@ class RubyLLM::Modes::RouterTruncationTest < Minitest::Test
 
   def test_nil_disables_a_cap
     classifier = FakeClassifier.deciding(mode_name: "card")
-    UncappedRouter.new.call("m" * 500, history: [ "h" * 500 ], classifier: classifier)
+    UncappedRouter.new.route(conversation("m" * 500, history: [ "h" * 500 ]), classifier: classifier)
     assert_equal "m" * 500, classifier.last_call[:message]
     assert_equal "h" * 500, classifier.last_call[:history].first[:content]
   end
@@ -463,7 +530,7 @@ class RubyLLM::Modes::RouterTruncationTest < Minitest::Test
   def test_history_last_applies_before_the_entry_cap
     router_class = Class.new(CappedRouter) { history last: 1 }
     classifier = FakeClassifier.deciding(mode_name: "card")
-    router_class.new.call("hi", history: [ "first", "second " + ("s" * 30) ], classifier: classifier)
+    router_class.new.route(conversation("hi", history: [ "first", "second " + ("s" * 30) ]), classifier: classifier)
     assert_equal [ { role: nil, content: "second " + ("s" * 13) + "\n[... 17 characters omitted ...]\n" } ], classifier.last_call[:history]
   end
 end

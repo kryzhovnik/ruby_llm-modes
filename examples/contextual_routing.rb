@@ -62,14 +62,19 @@ module Examples
     def self.chat_prompt(card:)
       factory = StubProvider::ChatFactory.new(mode: "card", confidence: 0.9, reason: "asked to add")
       classifier = RubyLLM::Modes::Classifiers::Chat.new(model: "gemini-3.5-flash-lite", chat_factory: factory)
-      Router.new(card:).call("add it to my cards", classifier: classifier)
+      Router.new(card:).route(chat, classifier: classifier)
       factory.system_prompt
     end
 
     def self.custom_instructions(card:)
       classifier = RecordingClassifier.new
-      Router.new(card:).call("add it to my cards", classifier: classifier)
+      Router.new(card:).route(chat, classifier: classifier)
       classifier.instructions
+    end
+
+    # The learner's chat with the message to route staged on it.
+    def self.chat
+      RubyLLM.chat(model: "gemini-3.5-flash-lite").ask_later("add it to my cards")
     end
   end
 end

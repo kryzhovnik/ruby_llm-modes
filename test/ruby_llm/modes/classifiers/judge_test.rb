@@ -81,7 +81,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
 
   def test_call_judges_the_state_with_the_modes_as_options
     judge = FakeJudge.new
-    route = CardRouter.new(card: :open).call("add it to my cards", history: HISTORY, classifier: Judge.new(model: "jev-latest", judge: judge))
+    route = CardRouter.new(card: :open).route(conversation("add it to my cards", history: HISTORY), classifier: Judge.new(model: "jev-latest", judge: judge))
 
     call = judge.last_call
     assert_equal Judge.state(message: "add it to my cards", history: HISTORY, instructions: "The learner has a flashcard open on screen."), call[:state]
@@ -98,7 +98,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
   end
 
   def test_declared_judge_option_reaches_the_backend
-    route = CardRouter.new(card: nil).call("add it")
+    route = CardRouter.new(card: nil).route(conversation("add it"))
     assert_equal "classifier", route.decided_by
     assert_equal ManageCardsAgent, route.mode_class
     assert_equal({ "mode_name" => "card", "confidence" => 0.8, "reason" => nil, "probabilities" => { "tutor" => 0.1, "card" => 0.9 } }, route.decision.to_h)
@@ -106,14 +106,14 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
 
   def test_symbol_choice_becomes_a_string_mode_name
     judge = FakeJudge.new(choice: :card, probabilities: { tutor: 0.2, card: 0.8 })
-    route = CardRouter.new(card: nil).call("add it", classifier: Judge.new(judge: judge))
+    route = CardRouter.new(card: nil).route(conversation("add it"), classifier: Judge.new(judge: judge))
     assert_equal "card", route.decision.mode_name
     assert_equal({ "tutor" => 0.2, "card" => 0.8 }, route.decision.probabilities)
   end
 
   def test_low_concentration_falls_back
     judge = FakeJudge.new(confidence: 0.3, probabilities: { "tutor" => 0.45, "card" => 0.55 })
-    route = CardRouter.new(card: nil).call("hmm", classifier: Judge.new(judge: judge))
+    route = CardRouter.new(card: nil).route(conversation("hmm"), classifier: Judge.new(judge: judge))
     assert_equal "fallback", route.decided_by
     assert_equal "Below confidence threshold", route.reason
     assert_equal "card", route.decision.mode_name
@@ -121,7 +121,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
 
   def test_a_declared_provider_is_passed_through
     judge = FakeJudge.new
-    CardRouter.new(card: nil).call("add it", classifier: Judge.new(model: "jev-latest", provider: :typesafe, judge: judge))
+    CardRouter.new(card: nil).route(conversation("add it"), classifier: Judge.new(model: "jev-latest", provider: :typesafe, judge: judge))
     assert_equal({ model: "jev-latest", provider: :typesafe }, judge.last_call[:options])
   end
 
@@ -133,25 +133,25 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
   def test_trace_keeps_the_declared_model_when_the_judgment_reports_no_string_id
     judge = FakeJudge.new(model: nil)
     classifier = Judge.new(model: "jev-latest", judge: judge)
-    CardRouter.new(card: nil).call("add it", classifier: classifier)
+    CardRouter.new(card: nil).route(conversation("add it"), classifier: classifier)
     assert_equal({ with: "judge", model: "jev-latest" }, classifier.trace)
   end
 
   def test_trace_does_not_keep_the_model_of_a_previous_call
     judge = FakeJudge.new(model: "jev-1.13.0")
     classifier = Judge.new(model: "jev-latest", judge: judge)
-    CardRouter.new(card: nil).call("add it", classifier: classifier)
+    CardRouter.new(card: nil).route(conversation("add it"), classifier: classifier)
     assert_equal "jev-1.13.0", classifier.trace[:model]
 
     judge.define_singleton_method(:call) { |*, **| raise IOError, "down" }
-    route = CardRouter.new(card: nil).call("add it", classifier: classifier)
+    route = CardRouter.new(card: nil).route(conversation("add it"), classifier: classifier)
     assert_equal "Classifier failed: IOError: down", route.reason
     assert_equal({ with: "judge", model: "jev-latest" }, route.classifier)
   end
 
   def test_a_non_choice_answer_is_a_contract_error
     judge = FakeJudge.new(answer: 0.9)
-    route = CardRouter.new(card: nil).call("add it", classifier: Judge.new(judge: judge))
+    route = CardRouter.new(card: nil).route(conversation("add it"), classifier: Judge.new(judge: judge))
     assert_equal "fallback", route.decided_by
     assert_instance_of RubyLLM::Modes::ContractError, route.error
   end
@@ -159,7 +159,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
   def test_a_missing_answer_is_a_contract_error
     judge = FakeJudge.new
     judge.instance_variable_set(:@answers, {})
-    route = CardRouter.new(card: nil).call("add it", classifier: Judge.new(judge: judge))
+    route = CardRouter.new(card: nil).route(conversation("add it"), classifier: Judge.new(judge: judge))
     assert_instance_of RubyLLM::Modes::ContractError, route.error
   end
 
@@ -179,7 +179,7 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
     RubyLLM.define_singleton_method(:judge) { |*args, **options| judge.call(*args, **options) }
 
     router_class = Class.new(CardRouter) { classify_with :judge, model: "jev-latest" }
-    route = router_class.new(card: nil).call("add it")
+    route = router_class.new(card: nil).route(conversation("add it"))
     assert_equal ManageCardsAgent, route.mode_class
     assert_equal({ model: "jev-latest" }, judge.last_call[:options])
   ensure

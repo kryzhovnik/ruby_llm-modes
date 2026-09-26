@@ -36,7 +36,10 @@ module Examples
     end
 
     def self.run
-      Router.new.call("let's go", history: [ "hi", "hello, what shall we do today?" ])
+      chat = RubyLLM.chat(model: "gemini-3.5-flash-lite")
+      chat.add_message(role: :user, content: "hi")
+      chat.add_message(role: :assistant, content: "hello, what shall we do today?")
+      Router.new.route(chat.ask_later("let's go"))
     end
   end
 end

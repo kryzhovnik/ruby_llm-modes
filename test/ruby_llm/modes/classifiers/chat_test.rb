@@ -78,7 +78,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
 
   def test_call_sends_the_frame_as_system_and_the_message_as_user
     factory = StubProvider::ChatFactory.new(mode: "card", confidence: 0.8, reason: "asked to add")
-    route = CardRouter.new(card: nil).call("add it to my cards", history: HISTORY, classifier: Chat.new(model: "gemini-3.5-flash-lite", chat_factory: factory))
+    route = CardRouter.new(card: nil).route(conversation("add it to my cards", history: HISTORY), classifier: Chat.new(model: "gemini-3.5-flash-lite", chat_factory: factory))
 
     request = factory.last_request
     assert_equal [ :system, :user ], request[:messages].map(&:role)
@@ -95,13 +95,13 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
 
   def test_chat_factory_receives_the_model
     factory = StubProvider::ChatFactory.new(mode: "card")
-    CardRouter.new(card: nil).call("hi", classifier: Chat.new(model: "gemini-3.5-flash-lite", chat_factory: factory))
+    CardRouter.new(card: nil).route(conversation("hi"), classifier: Chat.new(model: "gemini-3.5-flash-lite", chat_factory: factory))
     assert_equal [ { model: "gemini-3.5-flash-lite" } ], factory.calls
   end
 
   def test_instructions_are_part_of_the_system_prompt
     factory = StubProvider::ChatFactory.new(mode: "card")
-    CardRouter.new(card: :open).call("hi", classifier: Chat.new(chat_factory: factory))
+    CardRouter.new(card: :open).route(conversation("hi"), classifier: Chat.new(chat_factory: factory))
     assert_includes factory.system_prompt, "The learner has a flashcard open on screen."
   end
 
@@ -109,7 +109,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
     factory = StubProvider::ChatFactory.new(mode: "card", confidence: 0.95)
     router_class = Class.new(CardRouter) { classify_with :chat, model: "gemini-3.5-flash-lite", chat_factory: factory }
 
-    route = router_class.new(card: nil).call("add it")
+    route = router_class.new(card: nil).route(conversation("add it"))
     assert_equal "classifier", route.decided_by
     assert_equal ManageCardsAgent, route.mode_class
     assert_equal({ with: "chat", model: "gemini-3.5-flash-lite" }, route.classifier)
@@ -119,7 +119,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
     factory = StubProvider::ChatFactory.new(mode: "card")
     router_class = Class.new(CardRouter) { classify_with :chat, chat_factory: factory }
 
-    route = router_class.new(card: nil).call("add it")
+    route = router_class.new(card: nil).route(conversation("add it"))
     assert_equal "chat", route.classifier[:with]
     assert_equal RubyLLM.chat.model.id, route.classifier[:model]
   end
@@ -128,11 +128,11 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
     factory = StubProvider::ChatFactory.new(mode: "card")
     factory.define_singleton_method(:call) { |model:| super(model: "gemini-2.5-flash-lite") }
     classifier = Chat.new(model: "gemini-3.5-flash-lite", chat_factory: factory)
-    CardRouter.new(card: nil).call("add it", classifier: classifier)
+    CardRouter.new(card: nil).route(conversation("add it"), classifier: classifier)
     assert_equal "gemini-2.5-flash-lite", classifier.trace[:model]
 
     factory.define_singleton_method(:call) { |model:| raise IOError, "down" }
-    route = CardRouter.new(card: nil).call("add it", classifier: classifier)
+    route = CardRouter.new(card: nil).route(conversation("add it"), classifier: classifier)
     assert_equal "Classifier failed: IOError: down", route.reason
     assert_equal({ with: "chat", model: "gemini-3.5-flash-lite" }, route.classifier)
   end
@@ -145,7 +145,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
     def absorbing.respond_to_missing?(*) = true
     classifier = Chat.new(model: "gemini-3.5-flash-lite", chat_factory: ->(model:) { absorbing })
 
-    CardRouter.new(card: nil).call("add it", classifier: classifier)
+    CardRouter.new(card: nil).route(conversation("add it"), classifier: classifier)
 
     assert_equal({ with: "chat", model: "gemini-3.5-flash-lite" }, classifier.trace)
   end
@@ -164,7 +164,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
     end
 
     with_prompt_root("examples/card_router/instructions.txt.erb" => "TEMPLATE card=<%= card %>") do
-      router_class.new(card: "c1").call("add it", history: HISTORY)
+      router_class.new(card: "c1").route(conversation("add it", history: HISTORY))
       assert_includes factory.system_prompt, "TEMPLATE card=c1\n\nModes:"
     end
   end
@@ -178,7 +178,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
     end
 
     with_prompt_root("examples/card_router/instructions.txt.erb" => "<%= deck %> <%= level %>") do
-      router_class.new(card: "c1").call("add it", history: HISTORY)
+      router_class.new(card: "c1").route(conversation("add it", history: HISTORY))
       assert_includes factory.system_prompt, "c1-deck b2\n\nModes:"
     end
   end
@@ -192,7 +192,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
     end
 
     with_prompt_root("examples/card_router/routing.txt.erb" => "Be <%= tone %>, <%= card %>.") do
-      router_class.new(card: "c1").call("add it", history: HISTORY)
+      router_class.new(card: "c1").route(conversation("add it", history: HISTORY))
       assert_includes factory.system_prompt, "Be brief, c1. Card: c1.\n\nModes:"
     end
   end
@@ -210,7 +210,7 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
   def test_non_object_json_is_a_contract_error
     factory = StubProvider::ChatFactory.new(mode: "card")
     factory.instance_variable_set(:@selection, [ "card" ])
-    route = CardRouter.new(card: nil).call("add it", classifier: Chat.new(chat_factory: factory))
+    route = CardRouter.new(card: nil).route(conversation("add it"), classifier: Chat.new(chat_factory: factory))
     assert_instance_of RubyLLM::Modes::ContractError, route.error
   end
 end

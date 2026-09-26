@@ -13,14 +13,14 @@ class RubyLLM::Modes::RouteTest < Minitest::Test
     instructions { "Tutor for #{user}." }
   end
 
-  def route_with(inputs)
+  def route_with(inputs, chat: nil)
     Route.new(mode_class: GreetingAgent, mode_name: "greeting", decided_by: "caller", reason: "Mode requested by caller",
-              inputs:)
+              chat:, inputs:)
   end
 
-  def test_mode_builds_the_agent_on_the_chat_with_the_router_inputs
+  def test_mode_builds_the_agent_on_the_route_chat_with_the_router_inputs
     chat = RubyLLM.chat(model: "gemini-3.5-flash-lite").with_instructions("Base.")
-    agent = route_with({ user: "Kim", card: :ignored }).mode(chat:)
+    agent = route_with({ user: "Kim", card: :ignored }, chat:).mode
 
     assert_kind_of GreetingAgent, agent
     assert_same chat, agent.chat
@@ -34,18 +34,27 @@ class RubyLLM::Modes::RouteTest < Minitest::Test
     assert_equal [ "Tutor for Kim." ], agent.chat.messages.map(&:content)
   end
 
+  def test_mode_rejects_a_chat_of_its_own
+    route = route_with({ user: "Kim" }, chat: RubyLLM.chat(model: "gemini-3.5-flash-lite"))
+    assert_raises(ArgumentError) { route.mode(chat: RubyLLM.chat(model: "gemini-3.5-flash-lite")) }
+    assert_raises(ArgumentError) { route.mode(chat: nil) }
+  end
+
   def test_mode_forwards_extra_keywords_to_the_agent
     chat = RubyLLM.chat(model: "gemini-3.5-flash-lite")
-    agent = route_with({}).mode(chat:, user: "Lee")
+    agent = route_with({}, chat:).mode(user: "Lee")
 
     assert_equal [ "Tutor for Lee." ], agent.chat.messages.map(&:content)
   end
 
-  def test_inputs_default_to_an_empty_hash_and_stay_out_of_to_h
+  def test_chat_and_inputs_default_and_stay_out_of_to_h
     route = Route.new(mode_class: TutorAgent, mode_name: "tutor", decided_by: "caller", reason: "Mode requested by caller")
 
+    assert_nil route.chat
     assert_equal({}, route.inputs)
-    refute_includes route_with({ user: "Kim" }).to_h.keys, "inputs"
+    keys = route_with({ user: "Kim" }, chat: Object.new).to_h.keys
+    refute_includes keys, "inputs"
+    refute_includes keys, "chat"
   end
 
   def test_optional_members_default_to_nil

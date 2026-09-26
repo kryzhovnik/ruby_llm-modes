@@ -18,8 +18,9 @@ module RubyLLM
     #     classify_with :chat, model: "gemini-3.5-flash-lite"
     #   end
     #
-    #   route = ChatModeRouter.new(user:, card:).call(message, history:)
-    #   route.mode(chat:).complete
+    #   chat.ask_later(text)
+    #   route = ChatModeRouter.new(user:, card:).route(chat)
+    #   route.mode.complete
     #
     # Subclassing copies the declarations. +mode+ appends to the inherited
     # list; the other macros replace. Declarations are validated when a
@@ -103,10 +104,11 @@ module RubyLLM
           RubyLLM::Support::Utils.underscore((name || "router").gsub("::", "/"))
         end
 
-        # How much of the +history:+ given to +call+ reaches the classifier.
-        # <tt>history last: 6</tt> keeps the last six entries as given, any
-        # role; <tt>history :all</tt> keeps every entry, which is the
-        # default and lets a subclass undo an inherited limit.
+        # How much of the conversation before the routed message reaches
+        # the classifier. <tt>history last: 6</tt> keeps the last six
+        # entries, any role but system; <tt>history :all</tt> keeps every
+        # entry, which is the default and lets a subclass undo an
+        # inherited limit.
         def history(scope = nil, last: nil)
           unless (scope == :all) ^ !last.nil?
             raise ArgumentError, "history takes :all or last: n, got #{[ scope, last ].compact.inspect}"
@@ -287,21 +289,27 @@ module RubyLLM
         self.class.registrations.select { |registration| registration.available_on?(self) }
       end
 
-      # Routes +message+. +history:+ entries are <tt>{ role:, content: }</tt>
-      # hashes, RubyLLM::Message objects, records responding to +to_llm+,
-      # or strings. +classifier:+ replaces the declared backend for this
-      # call. Returns a Route.
+      # Routes the latest user message of +chat+: any object that yields
+      # its messages with +each+, as RubyLLM::Chat, a Rails chat record,
+      # and an Agent do. The entries are RubyLLM::Message objects, records
+      # responding to +to_llm+, <tt>{ role:, content: }</tt> hashes, or
+      # strings. System messages are left out; the last remaining entry
+      # must be a user message (ArgumentError otherwise) and is the routed
+      # message, the entries before it are the history. +classifier:+
+      # replaces the declared backend for this call. Returns a Route
+      # bound to +chat+.
       #
       # The message and the history entries are cut to the declared
       # +truncate+ caps first.
-      def call(message, history: [], classifier: nil)
+      def route(chat, classifier: nil)
+        message, history = split_conversation(chat)
         available = modes
-        return fallback_route("No other mode available", duration_ms: 0) if available.size == 1
+        return fallback_route(chat, "No other mode available", duration_ms: 0) if available.size == 1
 
         backend = classifier || self.classifier
         request = {
           message: truncate_message(message),
-          history: normalize_history(history),
+          history: limit_history(history),
           modes: available,
           instructions: resolved_instructions,
           inputs: inputs
@@ -312,40 +320,41 @@ module RubyLLM
         duration_ms = monotonic_ms - started
         trace = trace_for(backend)
 
-        return fallback_route(failure_reason(error), duration_ms:, classifier: trace, error:) if error
+        return fallback_route(chat, failure_reason(error), duration_ms:, classifier: trace, error:) if error
 
-        resolve(decision, available, duration_ms:, classifier: trace)
+        resolve(chat, decision, available, duration_ms:, classifier: trace)
       end
 
-      # Routes to the mode registered as +name+ because the caller chose it;
-      # no classifier runs. Respects +if:+ and raises UnknownMode when the
-      # name is not registered or not available now.
-      def force(name)
+      # Routes +chat+ to the mode registered as +name+ because the caller
+      # chose it; no classifier runs and the conversation is not read.
+      # Respects +if:+ and raises UnknownMode when the name is not
+      # registered or not available now.
+      def force(name, chat:)
         registration = modes.find { |candidate| candidate.name == name.to_s }
         raise UnknownMode.new("Unknown mode #{name}", receiver: self, key: name) unless registration
 
-        Route.new(mode_class: registration.klass, mode_name: registration.name, inputs:, decided_by: "caller", reason: "Mode requested by caller")
+        Route.new(mode_class: registration.klass, mode_name: registration.name, chat:, inputs:, decided_by: "caller", reason: "Mode requested by caller")
       end
 
       private
 
-      def resolve(decision, available, duration_ms:, classifier:)
+      def resolve(chat, decision, available, duration_ms:, classifier:)
         common = { duration_ms:, classifier:, decision: }
         registration = available.find { |candidate| candidate.name == decision.mode_name }
-        return fallback_route("Unknown mode #{decision.mode_name.nil? ? "nil" : decision.mode_name}", **common) unless registration
+        return fallback_route(chat, "Unknown mode #{decision.mode_name.nil? ? "nil" : decision.mode_name}", **common) unless registration
 
         threshold = self.class.below_confidence
         if threshold
-          return fallback_route("Confidence not scored", **common) if decision.confidence.nil?
-          return fallback_route("Below confidence threshold", **common) if decision.confidence < threshold
+          return fallback_route(chat, "Confidence not scored", **common) if decision.confidence.nil?
+          return fallback_route(chat, "Below confidence threshold", **common) if decision.confidence < threshold
         end
 
-        Route.new(mode_class: registration.klass, mode_name: registration.name, inputs:, decided_by: "classifier", reason: decision.reason, **common)
+        Route.new(mode_class: registration.klass, mode_name: registration.name, chat:, inputs:, decided_by: "classifier", reason: decision.reason, **common)
       end
 
-      def fallback_route(reason, **attributes)
+      def fallback_route(chat, reason, **attributes)
         registration = self.class.registrations.find { |candidate| candidate.klass == self.class.fallback_class }
-        Route.new(mode_class: registration.klass, mode_name: registration.name, inputs:, decided_by: "fallback", reason: reason, **attributes)
+        Route.new(mode_class: registration.klass, mode_name: registration.name, chat:, inputs:, decided_by: "fallback", reason: reason, **attributes)
       end
 
       # "Classifier failed: <class>: <first line of the message>", so a
@@ -433,17 +442,36 @@ module RubyLLM
         RubyLLM.render_prompt("#{self.class.prompt_path}/#{name}", **inputs, **evaluated)
       end
 
+      # The conversation of +chat+ without its system messages, as the
+      # routed message (the content of the last entry, which must be a user
+      # message) and the normalised entries before it. What the chat's
+      # system prompt says is for the answering model; the classifier has
+      # the router's own instructions.
+      #
+      # The messages are read with +each+, not +messages+: a Rails chat
+      # record forwards +each+ to its RubyLLM::Chat, whose messages are
+      # loaded in one go, while +messages+ is the bare association, under
+      # whatever name +acts_as_chat+ gave it.
+      def split_conversation(chat)
+        raise ArgumentError, "route takes a chat responding to each, got #{chat.class}" unless chat.respond_to?(:each)
+
+        entries = chat.each.map { |entry| normalize_entry(entry) }.reject { |entry| entry[:role] == :system }
+        last = entries.last
+        raise ArgumentError, "the chat has no message to route" if last.nil?
+        raise ArgumentError, "the latest message must be a user message, got role #{last[:role].inspect}" unless last[:role] == :user
+
+        [ last[:content], entries[0...-1] ]
+      end
+
       # A message within the cap is passed to the classifier as given.
       def truncate_message(message)
         limit = self.class.message_limit
-        return message if limit.nil?
+        return message if limit.nil? || message.size <= limit
 
-        text = message.to_s
-        text.size > limit ? Truncation.head_and_tail(text, limit) : message
+        Truncation.head_and_tail(message, limit)
       end
 
-      def normalize_history(history)
-        entries = history.map { |entry| normalize_entry(entry) }
+      def limit_history(entries)
         limit = self.class.history_limit
         entries = entries.last(limit) if limit
         entries.each { |entry| entry[:content] = Truncation.head(entry[:content], self.class.history_entry_limit) }
@@ -460,7 +488,7 @@ module RubyLLM
         else
           return normalize_entry(entry.to_llm) if entry.respond_to?(:to_llm)
 
-          raise ArgumentError, "history entries must be Hashes, RubyLLM::Messages, or Strings, got #{entry.class}"
+          raise ArgumentError, "chat messages must be Hashes, RubyLLM::Messages, or Strings, got #{entry.class}"
         end
       end
 

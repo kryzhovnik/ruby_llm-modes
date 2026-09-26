@@ -6,15 +6,17 @@
 # A Rails app loads the chat record per turn and needs no reset; a
 # script or a job that runs two modes on one chat object does, because
 # Agent's constructor only adds configuration. The chat starts with base
-# instructions. ManageCardsAgent adds tools, a schema, and high-effort
-# thinking. Before ClarifyAgent takes the next turn the app applies the
-# reset: base instructions back (which drops the appended mode
-# instructions), tools and schema cleared. Thinking enabled by a mode
-# stays on until the next with_thinking; add with_thinking(false) when
-# the model has an off control in RubyLLM's registry. ClarifyAgent then
-# adds its own instructions and low-effort thinking.
+# instructions. The router sends "add reluctant to my cards" to
+# ManageCardsAgent, which adds tools, a schema, and high-effort thinking.
+# Before the next turn the app applies the reset: base instructions back
+# (which drops the appended mode instructions), tools and schema
+# cleared. Thinking enabled by a mode stays on until the next
+# with_thinking; add with_thinking(false) when the model has an off
+# control in RubyLLM's registry. The router then sends "the other one" to
+# ClarifyAgent, which adds its own instructions and low-effort thinking.
 #
-# Only the provider request is stubbed; the chat is a real RubyLLM::Chat.
+# Only the provider request and the classifier are stubbed; the chat is
+# a real RubyLLM::Chat.
 #
 #   bundle exec ruby examples/tool_mode_to_clarification.rb
 
@@ -54,7 +56,22 @@ module Examples
       thinking effort: :low
     end
 
-    Snapshot = Struct.new(:system_messages, :tools, :schema, :thinking, keyword_init: true)
+    # Decides by a keyword instead of a model, so the example runs offline.
+    class KeywordClassifier
+      def call(message:, history:, modes:, instructions:, inputs:)
+        name = message.include?("cards") ? "manage_cards" : "clarify"
+        RubyLLM::Modes::Decision.new(mode_name: name, confidence: 1.0, reason: "keyword")
+      end
+    end
+
+    class Router < RubyLLM::Modes::Router
+      mode ManageCardsAgent, as: :manage_cards
+      mode ClarifyAgent, as: :clarify
+      fallback ClarifyAgent
+      classify_with KeywordClassifier.new
+    end
+
+    Snapshot = Struct.new(:mode_name, :system_messages, :tools, :schema, :thinking, keyword_init: true)
 
     # Returns the chat's configuration after each mode: +after_manage_cards+
     # and +after_clarify+.
@@ -62,15 +79,16 @@ module Examples
       chat = RubyLLM.chat(model: "gemini-3.5-flash-lite")
       StubProvider.stub(chat) { |_messages, **_options| "Which deck should it go to?" }
       chat.with_instructions(BASE_INSTRUCTIONS)
+      router = Router.new
 
-      chat.add_message(role: :user, content: "add reluctant to my cards")
-      ManageCardsAgent.new(chat:).complete
-      after_manage_cards = snapshot(chat)
+      route = router.route(chat.ask_later("add reluctant to my cards"))
+      route.mode.complete
+      after_manage_cards = snapshot(chat, route)
 
       reset(chat)
-      chat.add_message(role: :user, content: "the other one")
-      ClarifyAgent.new(chat:).complete
-      after_clarify = snapshot(chat)
+      route = router.route(chat.ask_later("the other one"))
+      route.mode.complete
+      after_clarify = snapshot(chat, route)
 
       { after_manage_cards:, after_clarify: }
     end
@@ -82,8 +100,9 @@ module Examples
           .with_schema(nil)
     end
 
-    def self.snapshot(chat)
+    def self.snapshot(chat, route)
       Snapshot.new(
+        mode_name: route.mode_name,
         system_messages: chat.messages.select { |message| message.role == :system }.map(&:content),
         tools: chat.tools.keys,
         schema: chat.schema,
@@ -95,7 +114,7 @@ end
 
 if __FILE__ == $PROGRAM_NAME
   Examples::ToolModeToClarification.run.each do |stage, snapshot|
-    puts "#{stage}:"
+    puts "#{stage} (mode #{snapshot.mode_name}):"
     puts "  system messages: #{snapshot.system_messages.inspect}"
     puts "  tools:           #{snapshot.tools.inspect}"
     puts "  schema:          #{snapshot.schema.nil? ? "nil" : "set"}"
