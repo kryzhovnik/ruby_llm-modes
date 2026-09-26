@@ -427,6 +427,54 @@ class RubyLLM::Modes::RouterRouteTest < Minitest::Test
     assert_equal "add it", classifier.last_call[:message]
   end
 
+  def test_tool_results_and_empty_calls_do_not_displace_text_history
+    router_class = Class.new(ThresholdRouter) { history last: 2 }
+    classifier = FakeClassifier.deciding(mode_name: "card")
+    chat = RubyLLM.chat
+    tool_calls = { "lookup" => RubyLLM::ToolCall.new(id: "lookup", name: "find_order", arguments: { id: 42 }) }
+    chat.add_message(role: :user, content: "Find my order")
+    chat.add_message(role: :assistant, content: "Checking your order.", tool_calls:)
+    chat.add_message(role: :tool, content: "Order shipped", tool_call_id: "lookup")
+    chat.add_message(role: :assistant, content: nil, tool_calls:)
+    chat.add_message(role: :tool, content: "Tracking details", tool_call_id: "lookup")
+    chat.ask_later("Can I cancel it?")
+    original_messages = chat.messages.dup
+
+    router_class.new(showtime_enabled: true).route(chat, classifier:)
+
+    assert_equal "Can I cancel it?", classifier.last_call[:message]
+    assert_equal [
+      { role: :user, content: "Find my order" },
+      { role: :assistant, content: "Checking your order." }
+    ], classifier.last_call[:history]
+    assert_equal original_messages, chat.messages
+  end
+
+  def test_explicit_history_keeps_nonblank_dialogue_and_plain_text_context
+    classifier = FakeClassifier.deciding(mode_name: "card")
+    transcript = [
+      { role: :user, content: "  Show options  " },
+      { "role" => "assistant", "content" => "Choose a card." },
+      { role: :tool, content: "Internal result" },
+      { role: :developer, content: "Internal instruction" },
+      { role: :assistant, content: nil },
+      { role: :user, content: " \n\t" },
+      "",
+      " \n",
+      "Visible cards: first, second",
+      { role: :user, content: "The second one" }
+    ]
+
+    ThresholdRouter.new(showtime_enabled: true).route(conversation, messages: transcript, classifier:)
+
+    assert_equal "The second one", classifier.last_call[:message]
+    assert_equal [
+      { role: :user, content: "  Show options  " },
+      { role: :assistant, content: "Choose a card." },
+      { role: nil, content: "Visible cards: first, second" }
+    ], classifier.last_call[:history]
+  end
+
   def test_messages_accept_records_responding_to_to_llm
     record = Struct.new(:to_llm).new(RubyLLM::Message.new(role: :assistant, content: "hello"))
     classifier = FakeClassifier.deciding(mode_name: "card")

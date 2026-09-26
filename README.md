@@ -126,7 +126,7 @@ end
 
 - `inputs` are required keywords of `new` (`order: nil` counts as passed) and become methods inside `if:` and `instructions` blocks.
 - `instructions` takes the same forms as in an Agent: a string, a block, or the conventional `app/prompts/support_router/instructions.txt.erb` template with keyword locals. It resolves on the router instance, and every backend receives the same string.
-- `history last: n` is how many entries before the routed message the classifier sees, system messages not counted. `history :all` is the default; it lets a subclass undo an inherited `last:`.
+- `history last: n` keeps the last `n` history entries after filtering. `history :all` is the default; it lets a subclass undo an inherited `last:`.
 - `truncate` cuts the routed message to its first and last half and each history entry to its head, with a marker for the cut. `nil` disables a cap. Keep `entries × history_entry + message` under your provider's request limit.
 - `fallback` is the mode used whenever the classifier is ignored (see the [outcome table](#outcomes)). Pass no threshold to accept any confidence.
 - Subclassing copies the declarations. `mode` appends to the inherited list; the other macros replace.
@@ -146,16 +146,18 @@ route = router.route(chat)
 route.mode.complete
 ```
 
-`route` takes any object that yields its messages with `each`, as `RubyLLM::Chat`, a Rails chat record, and an agent do; the entries are `RubyLLM::Message` objects, records responding to `to_llm`, `{ role:, content: }` hashes, or plain strings in history. It leaves the system messages out, routes the last remaining entry, which must be a user message (`ArgumentError` otherwise), and gives the classifier the entries before it as history. The classifier is not called when the fallback is the only available mode.
+`route` reads messages with `each`, as supported by `RubyLLM::Chat`, Rails chat records, and agents. Entries can be `RubyLLM::Message` objects, records responding to `to_llm`, `{ role:, content: }` hashes, or plain strings in history. The last entry after removing system messages must be a user message (`ArgumentError` otherwise). It becomes the routed message.
 
-Pass `messages:` when the classifier needs a transcript that differs from what the chat stores: visible text extracted from JSON, mode and UI context, hidden messages removed, or a snapshot ending at the user message for the current job.
+History keeps only nonblank user/assistant text and plain strings. Assistant text is kept even alongside tool calls; tool results and metadata are excluded. Filtering happens before `history last:` and `truncate`. The classifier is skipped when only the fallback mode is available.
+
+Pass `messages:` for a custom transcript: text extracted from JSON or UI cards, relevant tool state, or a snapshot ending at the current user message. The router cannot infer UI visibility; remove internal user/assistant text here.
 
 ```ruby
 route = router.route(chat, messages: transcript)
 route.mode.complete
 ```
 
-`messages:` accepts any object that yields entries with `each`, using the same formats and rules above. `history last:` and `truncate` still apply, and `classifier:` can be passed alongside it. Only the classifier reads this transcript: `route.chat` remains `chat`, and `route.mode` builds the agent on that chat. The transcript does not change what the answering model reads.
+`messages:` uses the same formats, filtering, and limits. Include extra context as user/assistant text or plain strings. It can be combined with `classifier:`. Only the classifier reads this transcript; `route.chat` and the answering agent still use the original chat.
 
 Omit `messages:` to read the chat. Passing `messages: nil` raises `ArgumentError`; it does not select the default. If an optional transcript uses `nil` to mean "read the chat", pass `messages: transcript || chat`.
 
@@ -221,7 +223,7 @@ router.route(chat, classifier: FakeClassifier.new(decision))
 `call(message:, history:, modes:, instructions:, inputs:)` returns a `Decision`.
 
 - `message` is the content of the routed message, cut to the `truncate` cap.
-- `history` is `[{ role:, content: }]`: the entries before the routed message, system messages left out, limited by `history last:` and cut.
+- `history` is `[{ role:, content: }]`: the filtered history after `history last:` and `truncate`. Plain strings have `role: nil`.
 - `modes` is what `router.modes` returns: the modes available on this call, each responding to `name`, `description`, and `klass`.
 - `instructions` is the resolved string or nil; `inputs` is the hash passed to `new`.
 - `Decision`: `mode_name` is a String or nil, `confidence` a number from 0 to 1 or nil for "not scored", `reason` and `probabilities` optional. Anything else is a `ContractError` and routes to the fallback.

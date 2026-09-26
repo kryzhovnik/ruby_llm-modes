@@ -104,11 +104,8 @@ module RubyLLM
           RubyLLM::Support::Utils.underscore((name || "router").gsub("::", "/"))
         end
 
-        # How much of the conversation before the routed message reaches
-        # the classifier. <tt>history last: 6</tt> keeps the last six
-        # entries, any role but system; <tt>history :all</tt> keeps every
-        # entry, which is the default and lets a subclass undo an
-        # inherited limit.
+        # <tt>history last: 6</tt> keeps the last six entries after filtering.
+        # <tt>history :all</tt> is the default and removes an inherited limit.
         def history(scope = nil, last: nil)
           unless (scope == :all) ^ !last.nil?
             raise ArgumentError, "history takes :all or last: n, got #{[ scope, last ].compact.inspect}"
@@ -297,7 +294,8 @@ module RubyLLM
       # responding to +to_llm+, <tt>{ role:, content: }</tt> hashes, or
       # strings. System messages are left out; the last remaining entry
       # must be a user message (ArgumentError otherwise) and is the routed
-      # message, the entries before it are the history. +classifier:+
+      # message. History keeps nonblank user/assistant content and plain
+      # text context; tool results and other roles are excluded. +classifier:+
       # replaces the declared backend for this call.
       #
       # The message and the history entries are cut to the declared
@@ -443,11 +441,8 @@ module RubyLLM
         RubyLLM.render_prompt("#{self.class.prompt_path}/#{name}", **inputs, **evaluated)
       end
 
-      # The conversation without its system messages, as the
-      # routed message (the content of the last entry, which must be a user
-      # message) and the normalised entries before it. What the chat's
-      # system prompt says is for the answering model; the classifier has
-      # the router's own instructions.
+      # The classifier uses the router's instructions, not the chat's
+      # system prompt.
       #
       # The messages are read with +each+, not +messages+: a Rails chat
       # record forwards +each+ to its RubyLLM::Chat, whose messages are
@@ -461,7 +456,10 @@ module RubyLLM
         raise ArgumentError, "the conversation has no message to route" if last.nil?
         raise ArgumentError, "the latest message must be a user message, got role #{last[:role].inspect}" unless last[:role] == :user
 
-        [ last[:content], entries[0...-1] ]
+        history = entries[0...-1].select do |entry|
+          [ nil, :user, :assistant ].include?(entry[:role]) && !entry[:content].strip.empty?
+        end
+        [ last[:content], history ]
       end
 
       # A message within the cap is passed to the classifier as given.
