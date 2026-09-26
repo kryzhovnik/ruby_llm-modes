@@ -7,13 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- `Router#route(chat, messages: transcript)` lets the classifier read a
-  transcript that differs from what the chat stores, with the same message
-  formats, history limits, and truncation. The route and its agent stay
-  bound to `chat`. Without `messages:`, the router reads the chat as before.
-
 ## [0.1.0] - 2026-09-26
 
 ### Added
@@ -30,10 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `instructions`, `history`, `fallback`, `classify_with`, `on_error`),
   inheritance that copies declarations, validation in `new`, availability
   via `if:`, `route(chat)`, `force(name, chat:)`, and the ordered outcome
-  table. `route` reads the conversation from the chat with `each`: system messages
-  are left out, the last entry must be a user message and is routed, the
-  entries before it are the history, limited by `history last: n` /
-  `history :all`.
+  table. `route` reads the chat with `each` and routes the last non-system
+  entry, which must be a user message. History keeps nonblank user/assistant
+  text and plain strings, excluding tool results and metadata before
+  applying `history last: n` / `history :all`. Assistant text is kept even
+  alongside tool calls.
+- `Router#route(chat, messages: transcript)` accepts a custom transcript
+  with the same formats, filtering, and limits. The route and its agent
+  stay bound to `chat`.
 - `Registration` value objects: what `Router#modes` returns and what a
   classifier receives as `modes:`.
 - `Decision` and `Route` value objects; `Route#decided_by` (`:caller`,
