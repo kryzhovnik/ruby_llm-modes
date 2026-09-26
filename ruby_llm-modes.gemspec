@@ -8,8 +8,8 @@ Gem::Specification.new do |spec|
   spec.authors       = [ "Andrey Samsonov" ]
   spec.email         = [ "me@samsonov.io" ]
 
-  spec.summary       = "Chat modes for RubyLLM: one chat, one configuration per turn, picked by a classifier"
-  spec.description   = "A mode is the configuration of one turn: a RubyLLM agent with a routing description. Declare the modes, a fallback, and a classifier; before each answer the router returns a Route that says which mode takes the turn, why, and what the classifier actually said."
+  spec.summary       = "Declarative chat modes and automatic routing for RubyLLM"
+  spec.description   = "Declaratively define multiple modes for a RubyLLM chat and automatically route each user message to the appropriate mode. Each mode has its own instructions, tools, model, and reasoning effort, while all modes share the conversation history. Configure mode availability and fallbacks, and inspect or test routing decisions independently of the response."
   spec.homepage      = "https://github.com/kryzhovnik/ruby_llm-modes"
   spec.license       = "MIT"
   spec.required_ruby_version = ">= 3.2.0"
