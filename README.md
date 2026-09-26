@@ -1,4 +1,4 @@
-# ruby_llm-modes
+# RubyLLM::Modes
 
 [![Gem Version](https://img.shields.io/gem/v/ruby_llm-modes.svg)](https://rubygems.org/gems/ruby_llm-modes)
 [![CI](https://github.com/kryzhovnik/ruby_llm-modes/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/kryzhovnik/ruby_llm-modes/actions/workflows/ci.yml)
@@ -89,7 +89,7 @@ end
 
 `description` tells the router what the mode does and when to pick it, as a Tool's `description` tells the model when to call the tool. `instructions` are for the model that answers, and the router never reads them. Write the description from the customer's side: what they ask for, and what is not for this mode.
 
-A mode that declares no `description` reads `app/prompts/help_agent/description.txt.erb`, rendered without locals: the convention Agent has for `instructions`, applied to the other text. The router reads descriptions when it is built.
+A mode that declares no `description` reads `app/prompts/help_agent/description.txt.erb`, rendered without locals: the convention Agent has for `instructions`, applied to the other text. The router resolves each description when its `mode` declaration runs.
 
 The default `mode_name` is the class name with the trailing `Agent` removed, namespaces kept, underscored: `HelpAgent` is `"help"`, `Support::HelpAgent` is `"support/help"`. Neither `description` nor `mode_name` is inherited.
 

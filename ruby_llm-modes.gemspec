@@ -20,6 +20,7 @@ Gem::Specification.new do |spec|
 
   spec.files = Dir[
     "lib/**/*",
+    "assets/**/*.svg",
     "README.md",
     "CHANGELOG.md",
     "LICENSE*",
