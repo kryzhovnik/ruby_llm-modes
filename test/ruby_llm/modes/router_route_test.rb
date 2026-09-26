@@ -319,6 +319,75 @@ class RubyLLM::Modes::RouterRouteTest < Minitest::Test
 
   # The conversation: what is routed and what is history
 
+  def test_explicit_messages_replace_the_chat_transcript_and_keep_the_agent_bound_to_chat
+    chat = RubyLLM.chat.ask_later("a later user message")
+    def chat.each = raise("the stored conversation must not be read")
+    classifier = FakeClassifier.deciding(mode_name: "card", confidence: 0.9)
+    transcript = Conversation.new([
+      { role: :assistant, content: "Add a card? Mode: tutor. UI: card offer." },
+      { role: :user, content: "yes" }
+    ])
+
+    result = ThresholdRouter.new(showtime_enabled: true).route(chat, messages: transcript, classifier:)
+
+    assert_equal "yes", classifier.last_call[:message]
+    assert_equal [
+      { role: :assistant, content: "Add a card? Mode: tutor. UI: card offer." }
+    ], classifier.last_call[:history]
+    assert_equal :classifier, result.decided_by
+    assert_same chat, result.chat
+    assert_same chat, result.mode.chat
+    assert_equal "a later user message", chat.messages.last.content
+  end
+
+  def test_explicit_messages_work_with_the_declared_classifier
+    classifier = FakeClassifier.deciding(mode_name: "card", confidence: 0.9)
+    router_class = Class.new(ThresholdRouter) { classify_with classifier }
+    chat = Object.new
+
+    result = router_class.new(showtime_enabled: true).route(chat, messages: [ { role: :user, content: "yes" } ])
+
+    assert_equal "yes", classifier.last_call[:message]
+    assert_equal :classifier, result.decided_by
+    assert_same chat, result.chat
+  end
+
+  def test_explicit_messages_keep_fallback_routes_bound_to_chat
+    chat = RubyLLM.chat
+    classifiers = [
+      FakeClassifier.deciding(mode_name: "unknown", confidence: 0.9),
+      FakeClassifier.new { raise IOError, "network" }
+    ]
+    classifiers.each do |classifier|
+      result = ThresholdRouter.new(showtime_enabled: true).route(chat, messages: conversation, classifier:)
+      assert_equal :fallback, result.decided_by
+      assert_same chat, result.chat
+      assert_same chat, result.mode.chat
+    end
+
+    result = LonelyRouter.new(flag: false).route(chat, messages: conversation)
+    assert_equal :fallback, result.decided_by
+    assert_same chat, result.chat
+  end
+
+  def test_invalid_explicit_messages_do_not_fall_back_to_reading_chat
+    router = ThresholdRouter.new(showtime_enabled: true)
+    chat = conversation
+    [ nil, "text", [], [ { role: :system, content: "Base." } ],
+      [ { role: :assistant, content: "hello" } ], [ "bare string" ], [ 42 ] ].each do |messages|
+      assert_raises(ArgumentError) { router.route(chat, messages:) }
+    end
+  end
+
+  def test_force_does_not_read_messages
+    chat = Object.new
+    def chat.each = raise("force must not read messages")
+
+    result = ThresholdRouter.new(showtime_enabled: true).force(:tutor, chat:)
+    assert_same chat, result.chat
+    assert_equal :caller, result.decided_by
+  end
+
   def test_the_latest_user_message_is_routed_and_the_rest_is_history
     classifier = FakeClassifier.deciding(mode_name: "card")
     history = [
@@ -391,7 +460,7 @@ class RubyLLM::Modes::RouterRouteTest < Minitest::Test
 
   def test_route_rejects_an_object_without_each
     error = assert_raises(ArgumentError) { ThresholdRouter.new(showtime_enabled: true).route("add it") }
-    assert_match(/responding to each/, error.message)
+    assert_match(/the conversation must respond to each/, error.message)
   end
 
   def test_route_rejects_a_chat_with_no_message
@@ -532,5 +601,22 @@ class RubyLLM::Modes::RouterTruncationTest < Minitest::Test
     classifier = FakeClassifier.deciding(mode_name: "card")
     router_class.new.route(conversation("hi", history: [ "first", "second " + ("s" * 30) ]), classifier: classifier)
     assert_equal [ { role: nil, content: "second " + ("s" * 13) + "\n[... 17 characters omitted ...]\n" } ], classifier.last_call[:history]
+  end
+
+  def test_explicit_messages_use_history_and_truncation_limits_without_changing_the_transcript
+    router_class = Class.new(CappedRouter) { history last: 1 }
+    classifier = FakeClassifier.deciding(mode_name: "card")
+    transcript = [
+      { role: :user, content: "old" }.freeze,
+      { role: :assistant, content: "h" * 30 }.freeze,
+      { role: :user, content: "m" * 120 }.freeze
+    ].freeze
+
+    router_class.new.route(Object.new, messages: transcript, classifier:)
+
+    assert_equal ("m" * 50) + "\n[... 20 characters omitted ...]\n" + ("m" * 50), classifier.last_call[:message]
+    assert_equal [ { role: :assistant, content: ("h" * 20) + "\n[... 10 characters omitted ...]\n" } ], classifier.last_call[:history]
+    assert_equal "h" * 30, transcript[1][:content]
+    assert_equal "m" * 120, transcript[2][:content]
   end
 end

@@ -289,20 +289,21 @@ module RubyLLM
         self.class.registrations.select { |registration| registration.available_on?(self) }
       end
 
-      # Routes the latest user message of +chat+: any object that yields
-      # its messages with +each+, as RubyLLM::Chat, a Rails chat record,
-      # and an Agent do. The entries are RubyLLM::Message objects, records
+      # Routes the latest user message from +messages+, which defaults to
+      # +chat+. Returns a Route bound to +chat+, regardless of the message
+      # source. The source must yield its entries with +each+, as
+      # RubyLLM::Chat, a Rails chat record, and an Agent do.
+      # The entries are RubyLLM::Message objects, records
       # responding to +to_llm+, <tt>{ role:, content: }</tt> hashes, or
       # strings. System messages are left out; the last remaining entry
       # must be a user message (ArgumentError otherwise) and is the routed
       # message, the entries before it are the history. +classifier:+
-      # replaces the declared backend for this call. Returns a Route
-      # bound to +chat+.
+      # replaces the declared backend for this call.
       #
       # The message and the history entries are cut to the declared
       # +truncate+ caps first.
-      def route(chat, classifier: nil)
-        message, history = split_conversation(chat)
+      def route(chat, messages: chat, classifier: nil)
+        message, history = split_conversation(messages)
         available = modes
         return fallback_route(chat, "No other mode available", duration_ms: 0) if available.size == 1
 
@@ -442,7 +443,7 @@ module RubyLLM
         RubyLLM.render_prompt("#{self.class.prompt_path}/#{name}", **inputs, **evaluated)
       end
 
-      # The conversation of +chat+ without its system messages, as the
+      # The conversation without its system messages, as the
       # routed message (the content of the last entry, which must be a user
       # message) and the normalised entries before it. What the chat's
       # system prompt says is for the answering model; the classifier has
@@ -452,12 +453,12 @@ module RubyLLM
       # record forwards +each+ to its RubyLLM::Chat, whose messages are
       # loaded in one go, while +messages+ is the bare association, under
       # whatever name +acts_as_chat+ gave it.
-      def split_conversation(chat)
-        raise ArgumentError, "route takes a chat responding to each, got #{chat.class}" unless chat.respond_to?(:each)
+      def split_conversation(messages)
+        raise ArgumentError, "the conversation must respond to each, got #{messages.class}" unless messages.respond_to?(:each)
 
-        entries = chat.each.map { |entry| normalize_entry(entry) }.reject { |entry| entry[:role] == :system }
+        entries = messages.each.map { |entry| normalize_entry(entry) }.reject { |entry| entry[:role] == :system }
         last = entries.last
-        raise ArgumentError, "the chat has no message to route" if last.nil?
+        raise ArgumentError, "the conversation has no message to route" if last.nil?
         raise ArgumentError, "the latest message must be a user message, got role #{last[:role].inspect}" unless last[:role] == :user
 
         [ last[:content], entries[0...-1] ]
@@ -488,7 +489,7 @@ module RubyLLM
         else
           return normalize_entry(entry.to_llm) if entry.respond_to?(:to_llm)
 
-          raise ArgumentError, "chat messages must be Hashes, RubyLLM::Messages, or Strings, got #{entry.class}"
+          raise ArgumentError, "messages must be Hashes, RubyLLM::Messages, or Strings, got #{entry.class}"
         end
       end
 

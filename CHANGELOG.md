@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `Router#route(chat, messages: transcript)` lets the classifier read a
+  transcript that differs from what the chat stores, with the same message
+  formats, history limits, and truncation. The route and its agent stay
+  bound to `chat`. Without `messages:`, the router reads the chat as before.
+
 ## [0.1.0] - 2026-09-26
 
 ### Added

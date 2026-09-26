@@ -135,7 +135,7 @@ The declaration is validated when the router is built with `new`; every problem 
 
 ## Routing a turn
 
-The router reads the conversation from the chat itself. Stage the user's message with `ask_later` (RubyLLM's `ask` is `ask_later` followed by `complete`), route, then let the mode complete the turn:
+By default, the router reads the conversation from the chat itself. Stage the user's message with `ask_later` (RubyLLM's `ask` is `ask_later` followed by `complete`), route, then let the mode complete the turn:
 
 ```ruby
 router = SupportRouter.new(customer: current_customer, order: current_order)
@@ -148,7 +148,18 @@ route.mode.complete
 
 `route` takes any object that yields its messages with `each`, as `RubyLLM::Chat`, a Rails chat record, and an agent do; the entries are `RubyLLM::Message` objects, records responding to `to_llm`, `{ role:, content: }` hashes, or plain strings in history. It leaves the system messages out, routes the last remaining entry, which must be a user message (`ArgumentError` otherwise), and gives the classifier the entries before it as history. The classifier is not called when the fallback is the only available mode.
 
-`force` is for the turns the app has already decided, such as a button that starts a mode by name: no classifier runs, `if:` still applies, and the result is a `Route` like any other. It raises `UnknownMode` when the name is not available.
+Pass `messages:` when the classifier needs a transcript that differs from what the chat stores: visible text extracted from JSON, mode and UI context, hidden messages removed, or a snapshot ending at the user message for the current job.
+
+```ruby
+route = router.route(chat, messages: transcript)
+route.mode.complete
+```
+
+`messages:` accepts any object that yields entries with `each`, using the same formats and rules above. `history last:` and `truncate` still apply, and `classifier:` can be passed alongside it. Only the classifier reads this transcript: `route.chat` remains `chat`, and `route.mode` builds the agent on that chat. The transcript does not change what the answering model reads.
+
+Omit `messages:` to read the chat. Passing `messages: nil` raises `ArgumentError`; it does not select the default. If an optional transcript uses `nil` to mean "read the chat", pass `messages: transcript || chat`.
+
+`force` is for the turns the app has already decided, such as a button that starts a mode by name: no classifier runs and no messages are read, `if:` still applies, and the result is a `Route` like any other. It raises `UnknownMode` when the name is not available.
 
 ```ruby
 route = router.force("returns", chat:)      # the customer pressed "Return an item"
