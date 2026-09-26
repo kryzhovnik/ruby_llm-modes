@@ -158,12 +158,12 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
   def test_instructions_template_renders_with_the_inputs
     factory = StubProvider::ChatFactory.new(mode: "card")
     router_class = Class.new(CardRouter) do
-      def self.name = "Examples::CardRouter"
+      def self.name = "Fixture::CardRouter"
       classify_with :chat, model: "gemini-3.5-flash-lite", chat_factory: factory
       instructions
     end
 
-    with_prompt_root("examples/card_router/instructions.txt.erb" => "TEMPLATE card=<%= card %>") do
+    with_prompt_root("fixture/card_router/instructions.txt.erb" => "TEMPLATE card=<%= card %>") do
       router_class.new(card: "c1").route(conversation("add it", history: HISTORY))
       assert_includes factory.system_prompt, "TEMPLATE card=c1\n\nModes:"
     end
@@ -172,12 +172,12 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
   def test_instructions_template_locals_run_on_the_router
     factory = StubProvider::ChatFactory.new(mode: "card")
     router_class = Class.new(CardRouter) do
-      def self.name = "Examples::CardRouter"
+      def self.name = "Fixture::CardRouter"
       classify_with :chat, model: "gemini-3.5-flash-lite", chat_factory: factory
       instructions deck: -> { "#{card}-deck" }, level: "b2"
     end
 
-    with_prompt_root("examples/card_router/instructions.txt.erb" => "<%= deck %> <%= level %>") do
+    with_prompt_root("fixture/card_router/instructions.txt.erb" => "<%= deck %> <%= level %>") do
       router_class.new(card: "c1").route(conversation("add it", history: HISTORY))
       assert_includes factory.system_prompt, "c1-deck b2\n\nModes:"
     end
@@ -186,12 +186,12 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
   def test_instructions_block_can_render_a_template_by_name
     factory = StubProvider::ChatFactory.new(mode: "card")
     router_class = Class.new(CardRouter) do
-      def self.name = "Examples::CardRouter"
+      def self.name = "Fixture::CardRouter"
       classify_with :chat, model: "gemini-3.5-flash-lite", chat_factory: factory
       instructions { "#{prompt("routing", tone: "brief")} Card: #{card}." }
     end
 
-    with_prompt_root("examples/card_router/routing.txt.erb" => "Be <%= tone %>, <%= card %>.") do
+    with_prompt_root("fixture/card_router/routing.txt.erb" => "Be <%= tone %>, <%= card %>.") do
       router_class.new(card: "c1").route(conversation("add it", history: HISTORY))
       assert_includes factory.system_prompt, "Be brief, c1. Card: c1.\n\nModes:"
     end
@@ -199,12 +199,12 @@ class RubyLLM::Modes::Classifiers::ChatTest < Minitest::Test
 
   def test_missing_template_is_a_declaration_error
     router_class = Class.new(CardRouter) do
-      def self.name = "Examples::CardRouter"
+      def self.name = "Fixture::CardRouter"
       instructions
     end
 
     error = assert_raises(RubyLLM::Modes::DeclarationError) { router_class.new(card: nil) }
-    assert_match %r{instructions template not found at .*examples/card_router/instructions\.txt\.erb}, error.message
+    assert_match %r{instructions template not found at .*fixture/card_router/instructions\.txt\.erb}, error.message
   end
 
   def test_non_object_json_is_a_contract_error

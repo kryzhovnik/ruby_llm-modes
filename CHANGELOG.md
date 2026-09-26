@@ -52,4 +52,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `Classifier failed` reason carries the first line of the exception's
   message after the class, so a provider's error body reaches the logged
   route.
-- Three acceptance examples under `examples/`, run as integration tests.

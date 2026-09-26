@@ -5,7 +5,7 @@ $LOAD_PATH.unshift File.expand_path("../lib", __dir__)
 require "ruby_llm/modes"
 require "minitest/autorun"
 require "tmpdir"
-require_relative "../examples/support/stub_provider"
+require_relative "support/stub_provider"
 
 # The classifier backend builds real RubyLLM chats. A provider refuses to
 # build without a key, so give it a dummy one; no request ever leaves the

@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="530" viewBox="0 0 980 530" role="img" aria-labelledby="title desc">
+  <title id="title">Context sent with one configuration and with modes</title>
+  <desc id="desc">Two turns in an expanded support chat. Each horizontal bar represents the total input context for one turn: instructions, tool declarations, earlier messages, and the new user message. Without modes, one prompt contains sections for Help, Returns, Orders, and Escalation, separated by dashed lines, followed by the tools for all modes. With modes, each turn includes only the selected mode's instructions and tools. The second turn's history contains the complete earlier user message and reply. Widths are illustrative.</desc>
+  <defs>
+    <style>
+      text { font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #17212f; }
+      .heading { font-size: 21px; font-weight: 700; }
+      .subtitle, .note { font-size: 14px; fill: #475569; }
+      .message { font-size: 15px; }
+      .route { font-size: 13px; font-weight: 600; fill: #1d4ed8; }
+      .cell-label { font-size: 12px; font-weight: 600; }
+      .outline { stroke: #64748b; stroke-width: 1; }
+      .divider { stroke: #64748b; stroke-width: 1.2; stroke-dasharray: 4 3; }
+    </style>
+    <g id="all-instructions">
+      <rect width="405" height="34" fill="#dbeafe" class="outline"/>
+      <rect width="50" height="34" fill="#bfdbfe"/>
+      <line x1="50" y1="3" x2="50" y2="31" class="divider"/>
+      <line x1="125" y1="3" x2="125" y2="31" class="divider"/>
+      <line x1="220" y1="3" x2="220" y2="31" class="divider"/>
+      <line x1="305" y1="3" x2="305" y2="31" class="divider"/>
+      <text x="25" y="22" text-anchor="middle" class="cell-label">Base</text>
+      <text x="87.5" y="22" text-anchor="middle" class="cell-label">Help</text>
+      <text x="172.5" y="22" text-anchor="middle" class="cell-label">Returns</text>
+      <text x="262.5" y="22" text-anchor="middle" class="cell-label">Orders</text>
+      <text x="355" y="22" text-anchor="middle" class="cell-label">Escalation</text>
+    </g>
+    <g id="all-tools">
+      <rect width="18" height="34" fill="#fde68a" class="outline"/>
+      <rect x="18" width="25" height="34" fill="#fde68a" class="outline"/>
+      <rect x="43" width="22" height="34" fill="#fde68a" class="outline"/>
+      <rect x="65" width="28" height="34" fill="#fde68a" class="outline"/>
+      <rect x="93" width="19" height="34" fill="#fde68a" class="outline"/>
+    </g>
+    <g id="help-config">
+      <rect width="50" height="34" fill="#bfdbfe" class="outline"/>
+      <rect x="50" width="75" height="34" fill="#dbeafe" class="outline"/>
+      <text x="25" y="22" text-anchor="middle" class="cell-label">Base</text>
+      <text x="87.5" y="22" text-anchor="middle" class="cell-label">Help</text>
+    </g>
+    <g id="returns-config">
+      <rect width="50" height="34" fill="#bfdbfe" class="outline"/>
+      <rect x="50" width="95" height="34" fill="#dbeafe" class="outline"/>
+      <rect x="145" width="18" height="34" fill="#fde68a" class="outline"/>
+      <rect x="163" width="25" height="34" fill="#fde68a" class="outline"/>
+      <text x="25" y="22" text-anchor="middle" class="cell-label">Base</text>
+      <text x="97.5" y="22" text-anchor="middle" class="cell-label">Returns</text>
+    </g>
+    <g id="first-message">
+      <rect width="120" height="34" fill="#334155" class="outline"/>
+      <text x="60" y="22" text-anchor="middle" class="cell-label" style="fill:#fff">New user</text>
+    </g>
+    <g id="second-message">
+      <rect width="200" height="34" fill="#e2e8f0" class="outline"/>
+      <rect x="200" width="180" height="34" fill="#334155" class="outline"/>
+      <text x="100" y="22" text-anchor="middle" class="cell-label">History</text>
+      <text x="290" y="22" text-anchor="middle" class="cell-label" style="fill:#fff">New user</text>
+    </g>
+  </defs>
+  <rect width="980" height="530" fill="#fff"/>
+  <text x="32" y="38" class="heading">One configuration</text>
+  <text x="32" y="61" class="subtitle">One prompt covers every mode; all tools are sent on every turn</text>
+
+  <text x="32" y="103" class="message">“What sizes do you have?”</text>
+  <use href="#all-instructions" x="32" y="114"/>
+  <use href="#all-tools" x="437" y="114"/>
+  <use href="#first-message" x="549" y="114"/>
+
+  <text x="32" y="184" class="message">“The jacket is too small, I want to send it back”</text>
+  <use href="#all-instructions" x="32" y="195"/>
+  <use href="#all-tools" x="437" y="195"/>
+  <use href="#second-message" x="549" y="195"/>
+
+  <line x1="32" y1="260" x2="929" y2="260" stroke="#cbd5e1"/>
+  <text x="32" y="299" class="heading">With modes</text>
+  <text x="32" y="322" class="subtitle">Only the selected mode's instructions and tools are sent</text>
+
+  <text x="32" y="364" class="message">“What sizes do you have?”</text>
+  <text x="258" y="364" class="route">router → help</text>
+  <use href="#help-config" x="32" y="375"/>
+  <use href="#first-message" x="157" y="375"/>
+
+  <text x="32" y="445" class="message">“The jacket is too small, I want to send it back”</text>
+  <text x="436" y="445" class="route">router → returns</text>
+  <use href="#returns-config" x="32" y="456"/>
+  <use href="#second-message" x="220" y="456"/>
+
+  <text x="32" y="513" class="note">Total context, shown schematically. Yellow blocks are separate tool declarations; gray blocks are history.</text>
+</svg>

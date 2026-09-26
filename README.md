@@ -1,10 +1,18 @@
 # ruby_llm-modes
 
+[![Gem Version](https://img.shields.io/gem/v/ruby_llm-modes.svg)](https://rubygems.org/gems/ruby_llm-modes)
+[![CI](https://github.com/kryzhovnik/ruby_llm-modes/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/kryzhovnik/ruby_llm-modes/actions/workflows/ci.yml)
+[![Ruby >= 3.2](https://img.shields.io/badge/ruby-%3E%3D%203.2-ruby.svg)](#installation)
+
 One chat, many modes: a cheap classifier picks the configuration of each turn before the answer.
 
-Two neighbouring messages in one chat can need very different turns. In the first, the user sends a single word and wants it explained right away; every second of delay counts. In the second, the user asks for a five-step job that needs tools, thinking, and a few extra seconds. The usual answer is one long system prompt, every tool declared up front, and a model strong enough for all of it. Then every turn pays for everything: the tool descriptions are sent with every request, one model and one effort level serve both the lookup and the job, the more similar tools the model sees the more often it picks the wrong one, and the choice of what to do now is made inside the model, where you cannot see or test it.
+Two messages in the same chat can need different configurations. A question about sizes calls for a quick answer; returning a jacket needs order lookup, return tools, and more time. With one configuration for both, every turn carries every tool description and uses the same model and effort level. Similar tools compete, and the choice of what to do stays inside the answering model, where you cannot log or test it separately.
 
-A **mode** is a named configuration of one turn: instructions, tools, model, thinking. All modes share one history. Before each answer a small classifier reads the latest user message and a window of history and answers one cheap question: *which mode should take this turn?* The router picks that mode, and your app applies it to the chat and runs the turn. The model that answers never sees another mode's tools or instructions. The decision is a value you can log and test: which mode, why, and what the classifier actually said. A judgment model or a small chat model answers the question in a fraction of a second, for less than the full toolset costs on every turn.
+A **mode** is a named configuration of one turn: instructions, tools, model, thinking. All modes share one history. Before each answer a small classifier reads the latest user message and a window of history and answers one cheap question: *which mode should take this turn?* The model that answers never sees another mode's tools or instructions. The decision is a value you can log and test: which mode, why, and what the classifier actually said. A judgment model or a small chat model answers the question in a fraction of a second, for less than the full toolset costs on every turn.
+
+![Two turns in an expanded support chat. With one configuration, both turns carry Help, Returns, Orders, and Escalation instructions and tools. With modes, each turn carries only its selected mode. The earlier conversation remains available.](assets/one-configuration-vs-modes.svg)
+
+*The diagram shows an expanded support router; the example below keeps two modes.*
 
 ```ruby
 class HelpAgent < RubyLLM::ModeAgent
@@ -53,6 +61,8 @@ gem "ruby_llm-modes"
 ```
 
 Requires [RubyLLM](https://rubyllm.com) 2.0 or newer and Ruby 3.2 or newer.
+
+The `:judge` example above currently requires RubyLLM from its `main` branch; RubyLLM 2.0.0 supports `:chat`.
 
 ## Modes
 
@@ -136,7 +146,7 @@ route = router.route(chat)
 route.mode.complete
 ```
 
-`route` takes any object that yields its messages with `each`, as `RubyLLM::Chat`, a Rails chat record, and an agent do; the entries are `RubyLLM::Message` objects, records responding to `to_llm`, `{ role:, content: }` hashes, or plain strings. It leaves the system messages out, routes the last remaining entry, which must be a user message (`ArgumentError` otherwise), and gives the classifier the entries before it as history. The classifier is not called when the fallback is the only available mode.
+`route` takes any object that yields its messages with `each`, as `RubyLLM::Chat`, a Rails chat record, and an agent do; the entries are `RubyLLM::Message` objects, records responding to `to_llm`, `{ role:, content: }` hashes, or plain strings in history. It leaves the system messages out, routes the last remaining entry, which must be a user message (`ArgumentError` otherwise), and gives the classifier the entries before it as history. The classifier is not called when the fallback is the only available mode.
 
 `force` is for the turns the app has already decided, such as a button that starts a mode by name: no classifier runs, `if:` still applies, and the result is a `Route` like any other. It raises `UnknownMode` when the name is not available.
 
@@ -152,7 +162,7 @@ route = router.force("returns", chat:)      # the customer pressed "Return an it
 route.mode.complete
 ```
 
-Run the turn through the agent, not the chat, so the agent's `rescue_from` handlers apply. Agent's constructor **adds** configuration to the chat, so call `mode` once per turn: mode instructions append to the system prompt; tools, schema, and thinking are set only when the mode declares them. A chat built for the turn (a Rails chat record, or a fresh `RubyLLM.chat`) needs nothing else. A chat object reused across turns keeps the previous mode's configuration and needs a reset before the next mode; `examples/tool_mode_to_clarification.rb` shows one.
+Run the turn through the agent, not the chat, so the agent's `rescue_from` handlers apply. Agent's constructor **adds** configuration to the chat, so call `mode` once per turn: mode instructions append to the system prompt; tools, schema, and thinking are set only when the mode declares them. A chat built for the turn (a Rails chat record, or a fresh `RubyLLM.chat`) needs nothing else. A chat object reused across turns keeps the previous mode's configuration and needs a reset before the next mode.
 
 ## Backends and what `confidence` means
 
@@ -239,15 +249,6 @@ The route is decided by the first rule that applies:
 ### Errors
 
 `Router.new` raises `DeclarationError` for any problem in the declaration and says which. `route` raises `ArgumentError` when the chat has no user message to route; `force` raises `UnknownMode`, a `KeyError`. A classifier that raised, or broke the contract (a `ContractError`), does not fail the turn: the route falls back and the exception is on `route.error`. To fail instead, raise from `on_error`; whatever the handler raises escapes `route`. An exception from an `instructions` block or template is a declaration bug and escapes `route` as well.
-
-## Examples
-
-`examples/` holds three runnable programs that double as the integration tests: contextual routing through `instructions`, a tool mode followed by a clarification mode routed on one chat, and a custom classifier whose low-confidence decision falls back with a full trace.
-
-```
-bundle exec ruby examples/contextual_routing.rb
-bundle exec rake
-```
 
 ## License
 
