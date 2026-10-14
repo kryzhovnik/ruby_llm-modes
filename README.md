@@ -62,7 +62,7 @@ gem "ruby_llm-modes"
 
 Requires [RubyLLM](https://rubyllm.com) 2.0 or newer and Ruby 3.2 or newer.
 
-The `:judge` example above currently requires RubyLLM from its `main` branch; RubyLLM 2.0.0 supports `:chat`.
+The `:judge` example above requires RubyLLM 2.1.0 or newer; RubyLLM 2.0.0 supports `:chat`.
 
 ## Modes
 
@@ -193,7 +193,7 @@ One `RubyLLM.judge` call with a single `choice` question whose options are the m
 
 `confidence` comes from the judgment model with the distribution and reflects how **concentrated** it is on one mode, not a self-report. The gem passes it through as is. There is no free text, so `reason` is nil and a clarification has to be a mode of its own.
 
-`model:` and `provider:` are passed to `RubyLLM.judge` as given; without them RubyLLM's defaults apply. `judge:` replaces `RubyLLM.judge` with any callable taking the same arguments and returning a `RubyLLM::Judgment`. `RubyLLM.judge` is not in ruby_llm 2.0.0; it is on RubyLLM's main branch. On a release without it, `classify_with :judge` raises `DeclarationError` unless `judge:` is given.
+`model:` and `provider:` are passed to `RubyLLM.judge` as given; without them RubyLLM's defaults apply. `judge:` replaces `RubyLLM.judge` with any callable taking the same arguments and returning a `RubyLLM::Judgment`. `RubyLLM.judge` ships with ruby_llm 2.1.0 and newer. On an older release, `classify_with :judge` raises `DeclarationError` unless `judge:` is given.
 
 ## Custom classifiers
 

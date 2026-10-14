@@ -199,12 +199,12 @@ class RubyLLM::Modes::RouterDeclarationTest < Minitest::Test
   end
 
   def test_judge_backend_without_ruby_llm_judge
-    skip "this RubyLLM ships Judge" if RubyLLM::Modes::Classifiers::Judge.available?
-
-    assert_declaration_error(/RubyLLM.judge is not available in ruby_llm/) do
-      mode TutorAgent
-      fallback TutorAgent
-      classify_with :judge
+    without_ruby_llm_judge do
+      assert_declaration_error(/RubyLLM.judge is not available in ruby_llm .*needs ruby_llm 2.1.0 or newer/) do
+        mode TutorAgent
+        fallback TutorAgent
+        classify_with :judge
+      end
     end
   end
 

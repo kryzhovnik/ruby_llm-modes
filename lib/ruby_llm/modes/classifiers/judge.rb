@@ -19,7 +19,7 @@ module RubyLLM
       # RubyLLM.judge; it is called with the same arguments and must return
       # a Judgment.
       #
-      # RubyLLM.judge is not in every RubyLLM release. Without it the
+      # RubyLLM.judge ships with ruby_llm 2.1.0 and newer. Without it the
       # backend cannot run, and the router says so when it is built.
       class Judge
         QUESTION = <<~TEXT.strip
@@ -78,7 +78,9 @@ module RubyLLM
 
         def judge
           return @judge if @judge
-          raise DeclarationError, "RubyLLM.judge is not available in ruby_llm #{RubyLLM::VERSION}" unless self.class.available?
+          unless self.class.available?
+            raise DeclarationError, "RubyLLM.judge is not available in ruby_llm #{RubyLLM::VERSION}; the :judge backend needs ruby_llm 2.1.0 or newer"
+          end
 
           RubyLLM.method(:judge)
         end

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-14
+
+### Changed
+
+- README, the `:judge` declaration error, and the classifier comment name
+  ruby_llm 2.1.0 as the release that ships `RubyLLM.judge`, instead of
+  pointing at RubyLLM's main branch.
+
 ## [0.1.0] - 2026-09-26
 
 ### Added

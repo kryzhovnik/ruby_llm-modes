@@ -249,7 +249,7 @@ module RubyLLM
           when :judge
             return if classifier_spec[:options][:judge] || Classifiers::Judge.available?
 
-            raise DeclarationError, "#{name}: RubyLLM.judge is not available in ruby_llm #{RubyLLM::VERSION}; the :judge backend needs a release that ships RubyLLM::Judge"
+            raise DeclarationError, "#{name}: RubyLLM.judge is not available in ruby_llm #{RubyLLM::VERSION}; the :judge backend needs ruby_llm 2.1.0 or newer"
           when Symbol
             raise DeclarationError, "#{name}: unknown classifier backend #{backend.inspect}"
           else

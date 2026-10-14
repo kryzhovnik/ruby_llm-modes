@@ -166,12 +166,12 @@ class RubyLLM::Modes::Classifiers::JudgeTest < Minitest::Test
   # RubyLLM.judge is the default only when the installed RubyLLM ships it.
 
   def test_calling_without_judge_support_is_a_declaration_error
-    skip "this RubyLLM ships Judge" if Judge.available?
-
-    error = assert_raises(RubyLLM::Modes::DeclarationError) do
-      Judge.new.call(message: "hi", history: [], modes: MODES, instructions: nil, inputs: {})
+    error = without_ruby_llm_judge do
+      assert_raises(RubyLLM::Modes::DeclarationError) do
+        Judge.new.call(message: "hi", history: [], modes: MODES, instructions: nil, inputs: {})
+      end
     end
-    assert_match(/RubyLLM.judge is not available/, error.message)
+    assert_match(/RubyLLM.judge is not available in ruby_llm .*needs ruby_llm 2.1.0 or newer/, error.message)
   end
 
   def test_the_default_judge_is_ruby_llm_judge

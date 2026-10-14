@@ -89,6 +89,17 @@ class FakeClassifier
   end
 end
 
+# Runs the block as if the installed ruby_llm had no RubyLLM.judge, so the
+# "judge not available" path is tested whatever release is bundled.
+def without_ruby_llm_judge
+  klass = RubyLLM::Modes::Classifiers::Judge
+  original = klass.method(:available?)
+  klass.define_singleton_method(:available?) { false }
+  yield
+ensure
+  klass.define_singleton_method(:available?, original)
+end
+
 # Serves prompt files from a temporary prompt root for the block.
 module PromptRoot
   # +files+ maps a path under app/prompts to its ERB source.
